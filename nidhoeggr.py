@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.61 2004/05/12 09:42:25 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.62 2004/05/12 11:53:16 ridcully Exp $"
 
 __copyright__ = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -981,18 +981,18 @@ class BroadCastServerRequestHandler(SocketServer.DatagramRequestHandler): # {{{
 		try:
 			line = self.rfile.read(4096)
 			broadcastdata = {}
-			broadcastdata['version'], broadcastdata['joinport'], broadcastdata['name'], broadcastdata['trackdir'], broadcastdata['cardir'], xplayers, broadcastdata['classes'], broadcastdata['racetype'], broadcastdata['junk'], hassession, broadcastdata['sessiontype'], broadcastdata['timeinsession'], broadcastdata['ispassworded'], broadcastdata['maxlatency'] = line[:-1].split("\001")
+			broadcastdata['version'], broadcastdata['joinport'], broadcastdata['name'], broadcastdata['trackdir'], broadcastdata['cardir'], xplayers, broadcastdata['classes'], broadcastdata['racetype'], unknown, hassession, broadcastdata['sessiontype'], timeinsession, broadcastdata['ispassworded'], broadcastdata['maxlatency'] = line[:-1].split("\001")
 			broadcastdata['players'], broadcastdata['maxplayers'] = xplayers.split('/')
 			if hassession=='N':
 				broadcastdata['sessiontype'] = '0'
 				broadcastdata['sessionleft'] = '0'
 			else:
-				broadcastdata['sessionleft'] = broadcastdata['timeinsession'][1:]
+				broadcastdata['sessionleft'] = timeinsession[1:]
 			rq_broadcast = request.Broadcast()
 			self.server._racelistserver.handleRequest(self.client_address,rq_broadcast.generateCompleteRequest(broadcastdata))
 		except Exception, e:
 			# can not much do about it
-			log(Log.DEBUG, e)
+			log(Log.WARNING, "Error on broadcast handling: %s" % e)
 
 # }}}
 

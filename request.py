@@ -247,6 +247,7 @@ class Broadcast(Request): # {{{
 		Param("cardir",paramchecks.check_string,""),
 		Param("players",paramchecks.check_players,""),
 		Param("maxplayers",paramchecks.check_players,""),
+		Param("racetype",paramchecks.check_string,""),
 		Param("classes",paramchecks.check_string,""),
 		Param("sessiontype",paramchecks.check_sessiontype,""),
 		Param("sessionleft",paramchecks.check_suint,""),
