@@ -7,7 +7,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.24 2003/11/09 14:26:43 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.25 2003/11/09 15:08:26 ridcully Exp $"
 
 DEFAULT_RACELISTPORT=27233
 DEFAULT_BROADCASTPORT=6970
@@ -32,6 +32,8 @@ import re
 import select
 import time
 import socket
+if __debug__:
+	import random
 
 import tools
 from tools import Log, log
@@ -249,6 +251,8 @@ class Race(tools.IdleWatcher): # {{{
 		"""
 		"""
 		self.params = params
+		if self.ip=='127.0.0.1':
+			self.ip = random.choice([ '193.99.144.71', '206.231.101.19', '80.15.238.104', '80.15.238.102' ])
 		self.params["server_id"] = sha.new("%s%s%s%s%s" % (self.client_id,self.ip, self.joinport, time.time(), random.randint(0,1000000))).hexdigest()
 		self.params["broadcastid"] = "%s:%s" % (self.ip, self.joinport)
 
