@@ -25,7 +25,49 @@ Returns a list of races and the drivers in this races.
 \item client\_id:string
 \end{itemize}
 \item {\it Result:}\\
-Racelist in the following form: each line starting with R is a race - the following lines starting with D are the drivers.
+The complete current racelist. Each line holds either a race or following the drivers of a race. Each line starts either with a cell containing R or D. Races consist of the following: 
+			
+		R, 
+		server\_id, 
+		ip, 
+		joinport, 
+		name, 
+		info1, 
+		info2, 
+		comment, 
+		isdedicatedserver, 
+		ispassworded, 
+		isbosspassworded, 
+		isauthenticedserver, 
+		allowedchassis, 
+		allowedcarclasses, 
+		allowsengineswapping, 
+		modindent, 
+		maxlatency, 
+		bandwidth, 
+		maxplayers, 
+		trackdir, 
+		racetype, 
+		praclength, 
+		sessionleft, 
+		sessiontype
+
+
+		The drivers contain this data:
+
+		D,
+		firstname,
+		lastname,
+		class\_id,
+		team\_id,
+		mod\_id,
+		nationality,
+		helmet\_colour,
+		qualifying\_time,
+		race\_position,
+		race\_laps,
+		race\_notes
+		
 \end{description}
 
 \subsection{host}

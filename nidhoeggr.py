@@ -1,6 +1,6 @@
 #!/usr/bin/env python2.2
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.9 2003/06/23 18:54:00 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.10 2003/06/23 19:30:26 ridcully Exp $"
 
 copyright = """
 Copyright 2003 Christoph Frick <rid@gmx.net>
@@ -718,7 +718,50 @@ class RaceListRequestHandlerReqFull(RaceListRequestHandler): # {{{
 		])
 
 	def _handleRequest(self,client_address,params):
-		"""Racelist in the following form: each line starting with R is a race - the following lines starting with D are the drivers."""
+		"""The complete current racelist. Each line holds either a race or following the drivers of a race. Each line starts either with a cell containing R or D. Races consist of the following: 
+			
+		R, 
+		server_id, 
+		ip, 
+		joinport, 
+		name, 
+		info1, 
+		info2, 
+		comment, 
+		isdedicatedserver, 
+		ispassworded, 
+		isbosspassworded, 
+		isauthenticedserver, 
+		allowedchassis, 
+		allowedcarclasses, 
+		allowsengineswapping, 
+		modindent, 
+		maxlatency, 
+		bandwidth, 
+		maxplayers, 
+		trackdir, 
+		racetype, 
+		praclength, 
+		sessionleft, 
+		sessiontype
+
+
+		The drivers contain this data:
+
+		D,
+		firstname,
+		lastname,
+		class_id,
+		team_id,
+		mod_id,
+		nationality,
+		helmet_colour,
+		qualifying_time,
+		race_position,
+		race_laps,
+		race_notes
+		"""
+
 		user = self._racelist.getUser(params["client_id"])
 		user.setActive()
 		return self._racelist.getRaceListAsReply()
