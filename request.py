@@ -4,7 +4,7 @@ import socket
 
 PROTOCOL_VERSION="scary v1.1"
 
-class RequestParam: # {{{
+class Param: # {{{
 	""""""
 	def __init__(self, paramname, check, help):
 		self.paramname = paramname
@@ -29,14 +29,14 @@ class Request: # {{{
 
 # }}}
 
-class RequestLogin(Request): # {{{
+class Login(Request): # {{{
 	def __init__(self):
 		Request.__init__( self,
 			"login",
 			[
-				RequestParam("protocol_version",paramchecks.check_string,"version of the protocol, the client expects"),
-				RequestParam("client_version", paramchecks.check_string, "name/version string of the client"),
-				RequestParam("client_uniqid", paramchecks.check_string, "some uniq id of the client")
+				Param("protocol_version",paramchecks.check_string,"version of the protocol, the client expects"),
+				Param("client_version", paramchecks.check_string, "name/version string of the client"),
+				Param("client_uniqid", paramchecks.check_string, "some uniq id of the client")
 			],
 			"""Login of the client/user onto the server. This command must be called before all others. This command will assure, that client and server speak the same version of the protocol.""",
 			"""The reply contains 4 cells: protocol version, server version, client id for further requests, ip the connection came from."""
@@ -44,56 +44,56 @@ class RequestLogin(Request): # {{{
 
 # }}}
 
-class RequestHost(Request): # {{{
+class Host(Request): # {{{
 	def __init__(self):
 		Request.__init__( self, 
 			"host", 
 			[
-				RequestParam("client_id", paramchecks.check_string, ""), 
-				RequestParam("joinport", paramchecks.check_suint, ""), 
-				RequestParam("name", paramchecks.check_string, ""), 
-				RequestParam("info1", paramchecks.check_string, ""), 
-				RequestParam("info2", paramchecks.check_string, ""), 
-				RequestParam("comment", paramchecks.check_string, ""), 
-				RequestParam("isdedicatedserver", paramchecks.check_boolean, ""),
-				RequestParam("ispassworded", paramchecks.check_boolean, ""), 
-				RequestParam("isbosspassworded", paramchecks.check_boolean, ""), 
-				RequestParam("isauthenticedserver", paramchecks.check_boolean, ""),
-				RequestParam("allowedchassis", paramchecks.check_chassisbitfield, ""),
-				RequestParam("allowedcarclasses", paramchecks.check_carclassbitfield, ""),
-				RequestParam("allowsengineswapping", paramchecks.check_boolean, ""),
-				RequestParam("modindent", paramchecks.check_string, ""),
-				RequestParam("maxlatency", paramchecks.check_suint, ""), 
-				RequestParam("bandwidth", paramchecks.check_bandwidthfield, ""),
-				RequestParam("maxplayers", paramchecks.check_players, ""),
-				RequestParam("trackdir", paramchecks.check_string, ""), 
-				RequestParam("racetype", paramchecks.check_racetype, ""), 
-				RequestParam("praclength", paramchecks.check_suint, ""),
-				RequestParam("aiplayers", paramchecks.check_players, ""),
-				RequestParam("numraces", paramchecks.check_suint, ""),
-				RequestParam("repeatcount", paramchecks.check_suint, ""),
-				RequestParam("flags", paramchecks.check_string, ""),
-				RequestParam("firstname", paramchecks.check_string, ""), 
-				RequestParam("lastname", paramchecks.check_string, ""), 
-				RequestParam("class_id", paramchecks.check_class, ""), 
-				RequestParam("team_id", paramchecks.check_team, ""), 
-				RequestParam("mod_id", paramchecks.check_string, ""), 
-				RequestParam("nationality", paramchecks.check_nationality, ""), 
-				RequestParam("helmet_colour", paramchecks.check_helmetcolour, "")
+				Param("client_id", paramchecks.check_string, ""), 
+				Param("joinport", paramchecks.check_suint, ""), 
+				Param("name", paramchecks.check_string, ""), 
+				Param("info1", paramchecks.check_string, ""), 
+				Param("info2", paramchecks.check_string, ""), 
+				Param("comment", paramchecks.check_string, ""), 
+				Param("isdedicatedserver", paramchecks.check_boolean, ""),
+				Param("ispassworded", paramchecks.check_boolean, ""), 
+				Param("isbosspassworded", paramchecks.check_boolean, ""), 
+				Param("isauthenticedserver", paramchecks.check_boolean, ""),
+				Param("allowedchassis", paramchecks.check_chassisbitfield, ""),
+				Param("allowedcarclasses", paramchecks.check_carclassbitfield, ""),
+				Param("allowsengineswapping", paramchecks.check_boolean, ""),
+				Param("modindent", paramchecks.check_string, ""),
+				Param("maxlatency", paramchecks.check_suint, ""), 
+				Param("bandwidth", paramchecks.check_bandwidthfield, ""),
+				Param("maxplayers", paramchecks.check_players, ""),
+				Param("trackdir", paramchecks.check_string, ""), 
+				Param("racetype", paramchecks.check_racetype, ""), 
+				Param("praclength", paramchecks.check_suint, ""),
+				Param("aiplayers", paramchecks.check_players, ""),
+				Param("numraces", paramchecks.check_suint, ""),
+				Param("repeatcount", paramchecks.check_suint, ""),
+				Param("flags", paramchecks.check_string, ""),
+				Param("firstname", paramchecks.check_string, ""), 
+				Param("lastname", paramchecks.check_string, ""), 
+				Param("class_id", paramchecks.check_class, ""), 
+				Param("team_id", paramchecks.check_team, ""), 
+				Param("mod_id", paramchecks.check_string, ""), 
+				Param("nationality", paramchecks.check_nationality, ""), 
+				Param("helmet_colour", paramchecks.check_helmetcolour, "")
 			],
 			"""Starts hosting of a race. The given informations are used to describe the race and will be displayed in the same order in the racelist.""",
 			"""A unique id for the server, that will be used to update the hosting and race informations and also by the clients to join/leave the race and the IP address the request came from"""
 		)
 # }}}
 
-class RequestReqFull(Request): # {{{
+class ReqFull(Request): # {{{
 	"""
 	"""
 	def __init__(self):
 		Request.__init__(self, 
 			"req_full", 
 			[
-				RequestParam("client_id", paramchecks.check_string, "")
+				Param("client_id", paramchecks.check_string, "")
 			],
 			"""Returns a list of races and the drivers in this races.""",
 			"""The complete current racelist. Each line holds either a race or following the drivers of a race. Each line starts either with a cell containing R or D. Races consist of the following: 
@@ -147,72 +147,72 @@ class RequestReqFull(Request): # {{{
 		)
 # }}}
 
-class RequestJoin(Request): # {{{
+class Join(Request): # {{{
 	"""
 	"""
 	def __init__(self):
 		Request.__init__(self, 
 			"join", 
 			[
-				RequestParam("server_id", paramchecks.check_string, ""), 
-				RequestParam("client_id", paramchecks.check_string, ""), 
-				RequestParam("firstname", paramchecks.check_string, ""), 
-				RequestParam("lastname", paramchecks.check_string, ""), 
-				RequestParam("class_id", paramchecks.check_class, ""), 
-				RequestParam("team_id", paramchecks.check_team, ""), 
-				RequestParam("mod_id", paramchecks.check_string, ""), 
-				RequestParam("nationality", paramchecks.check_nationality, ""), 
-				RequestParam("helmet_colour", paramchecks.check_helmetcolour, "")
+				Param("server_id", paramchecks.check_string, ""), 
+				Param("client_id", paramchecks.check_string, ""), 
+				Param("firstname", paramchecks.check_string, ""), 
+				Param("lastname", paramchecks.check_string, ""), 
+				Param("class_id", paramchecks.check_class, ""), 
+				Param("team_id", paramchecks.check_team, ""), 
+				Param("mod_id", paramchecks.check_string, ""), 
+				Param("nationality", paramchecks.check_nationality, ""), 
+				Param("helmet_colour", paramchecks.check_helmetcolour, "")
 			],
 			"""The client with the given id joins the server with the given id. Several informations about the driver itself are also submited for the list of races and their drivers.""",
 			"""Nothing."""
 		)
 # }}}
 
-class RequestLeave(Request): # {{{
+class Leave(Request): # {{{
 	"""
 	"""
 	def __init__(self):
 		Request.__init__(self, 
 			"leave", 
 			[
-				RequestParam("server_id", paramchecks.check_string, ""), 
-				RequestParam("client_id", paramchecks.check_string, "")
+				Param("server_id", paramchecks.check_string, ""), 
+				Param("client_id", paramchecks.check_string, "")
 			],
 			"""Removes the client with the given id from the server with the given id.""",
 			"""Nothing."""
 		)
 # }}}
 
-class RequestEndHost(Request): # {{{
+class EndHost(Request): # {{{
 	"""
 	"""
 	def __init__(self):
 		Request.__init__(self, 
 			"endhost", 
 			[
-				RequestParam("server_id", paramchecks.check_string, ""),
-				RequestParam("client_id", paramchecks.check_string, "")
+				Param("server_id", paramchecks.check_string, ""),
+				Param("client_id", paramchecks.check_string, "")
 			],
 			"""Stops the hosting of the race with the given id.""",
 			"""Nothing."""
 		)
 # }}}
 
-class RequestReport(Request): # {{{
+class Report(Request): # {{{
 	
 	def __init__(self):
 		Request.__init__(self, 
 			"report", 
 			[
-				RequestParam("server_id", paramchecks.check_string, "")
+				Param("server_id", paramchecks.check_string, "")
 			],
 			"""Updates the informations of the given server.""",
 			"""Nothing."""
 		)
 # }}}
 
-class RequestCopyright(Request): # {{{
+class Copyright(Request): # {{{
 
 	def __init__(self):
 		Request.__init__(self, 
@@ -223,7 +223,7 @@ class RequestCopyright(Request): # {{{
 		)
 # }}}
 
-class RequestHelp(Request): # {{{
+class Help(Request): # {{{
 	"""
 	"""
 	def __init__(self):
@@ -235,62 +235,62 @@ class RequestHelp(Request): # {{{
 		)
 # }}}
 
-class RequestRLSRegister(Request): # {{{
+class RLSRegister(Request): # {{{
 
 	def __init__(self):
 		Request.__init__(self,
 			"rls_register",
 			[
-				RequestParam('rls_id', paramchecks.check_string, ''),
-				RequestParam('name', paramchecks.check_string, ''),
-				RequestParam('port', paramchecks.check_suint, ''),
-				RequestParam('maxload', paramchecks.check_maxload, '')
+				Param('rls_id', paramchecks.check_string, ''),
+				Param('name', paramchecks.check_string, ''),
+				Param('port', paramchecks.check_suint, ''),
+				Param('maxload', paramchecks.check_maxload, '')
 			],
 			"""Registers a race list server for the reproduction""",
 			"""List of the known race list servers"""
 		)
 # }}}
 
-class RequestRLSUnRegister(Request): # {{{
+class RLSUnRegister(Request): # {{{
 
 	def __init__(self):
 		Request.__init__(self,
 			"rls_unregister",
 			[
-				RequestParam('rls_id', paramchecks.check_string, '')
+				Param('rls_id', paramchecks.check_string, '')
 			],
 			"""Removes the race list server from the known servers""",
 			"""Nothing"""
 		)
 # }}}
 
-class RequestRLSUpdate(Request): # {{{
+class RLSUpdate(Request): # {{{
 
 	def __init__(self):
 		Request.__init__(self,
 			"rls_update",
 			[
-				RequestParam('rls_id', paramchecks.check_string, '')
+				Param('rls_id', paramchecks.check_string, '')
 			],
 			"""A list of all updates from a certain server""",
 			"""List of all requests on this server since the last call of this function"""
 		)
 # }}}
 
-class RequestRLSFullUpdate(Request): # {{{
+class RLSFullUpdate(Request): # {{{
 
 	def __init__(self):
 		Request.__init__(self,
 			"rls_fullupdate",
 			[
-				RequestParam('rls_id', paramchecks.check_string, '')
+				Param('rls_id', paramchecks.check_string, '')
 			],
 			"""Complete list of all data from the server; this is used after the registration to get the complete data from the choosen master""",
 			"""All Users, Races and their Drivers on this server"""
 		)
 # }}}
 
-class RequestHandler: # {{{
+class Handler: # {{{
 
 	def __init__(self,server):
 		self._server = server
@@ -312,15 +312,15 @@ class RequestHandler: # {{{
 		return self._handleRequest(params)
 
 	def _handleRequest(self,data):
-		raise NotImplementedError("RequestHandler._handleRequest is not implemented")
+		raise NotImplementedError("Handler._handleRequest is not implemented")
 
 # }}}
 
-class RequestHandlerLogin(RequestHandler, RequestLogin): # {{{
+class HandlerLogin(Handler, Login): # {{{
 	
 	def __init__(self,server):
-		RequestLogin.__init__(self)
-		RequestHandler.__init__(self, server)
+		Login.__init__(self)
+		Handler.__init__(self, server)
 
 	def _handleRequest(self,params):
 		if params["protocol_version"]!=PROTOCOL_VERSION:
@@ -339,12 +339,12 @@ class RequestHandlerLogin(RequestHandler, RequestLogin): # {{{
 
 # }}}
 
-class RequestHandlerHost(RequestHandler, RequestHost): # {{{
+class HandlerHost(Handler, Host): # {{{
 	"""
 	"""
 	def __init__(self, server):
-		RequestHost.__init__(self)
-		RequestHandler.__init__(self, server)
+		Host.__init__(self)
+		Handler.__init__(self, server)
 
 	def _handleRequest(self,params):
 		self._server._racelist.getUser(params["client_id"])
@@ -360,12 +360,12 @@ class RequestHandlerHost(RequestHandler, RequestHost): # {{{
 
 # }}}
 
-class RequestHandlerReqFull(RequestHandler, RequestReqFull): # {{{
+class HandlerReqFull(Handler, ReqFull): # {{{
 	"""
 	"""
 	def __init__(self, server):
-		RequestReqFull.__init__(self)
-		RequestHandler.__init__(self, server)
+		ReqFull.__init__(self)
+		Handler.__init__(self, server)
 
 	def _handleRequest(self,params):
 		user = self._server._racelist.getUser(params["client_id"])
@@ -374,12 +374,12 @@ class RequestHandlerReqFull(RequestHandler, RequestReqFull): # {{{
 
 # }}}
 
-class RequestHandlerJoin(RequestHandler, RequestJoin): # {{{
+class HandlerJoin(Handler, Join): # {{{
 	"""
 	"""
 	def __init__(self, server):
-		RequestJoin.__init__(self)
-		RequestHandler.__init__(self, server)
+		Join.__init__(self)
+		Handler.__init__(self, server)
 
 	def _handleRequest(self,params):
 		user = self._server._racelist.getUser(params["client_id"])
@@ -389,12 +389,12 @@ class RequestHandlerJoin(RequestHandler, RequestJoin): # {{{
 
 # }}}
 
-class RequestHandlerLeave(RequestHandler, RequestLeave): # {{{
+class HandlerLeave(Handler, Leave): # {{{
 	"""
 	"""
 	def __init__(self, server):
-		RequestLeave.__init__(self)
-		RequestHandler.__init__(self, server)
+		Leave.__init__(self)
+		Handler.__init__(self, server)
 
 	def _handleRequest(self,params):
 		self._server._racelist.driverLeaveRace(params["server_id"], params["client_id"])
@@ -402,12 +402,12 @@ class RequestHandlerLeave(RequestHandler, RequestLeave): # {{{
 
 # }}}
 
-class RequestHandlerEndHost(RequestHandler, RequestEndHost): # {{{
+class HandlerEndHost(Handler, EndHost): # {{{
 	"""
 	"""
 	def __init__(self, server):
-		RequestEndHost.__init__(self)
-		RequestHandler.__init__(self, server)
+		EndHost.__init__(self)
+		Handler.__init__(self, server)
 
 	def _handleRequest(self,params):
 		self._server._racelist.removeRace(params["server_id"], params["client_id"])
@@ -415,12 +415,12 @@ class RequestHandlerEndHost(RequestHandler, RequestEndHost): # {{{
 
 # }}}
 
-class RequestHandlerReport(RequestHandler, RequestReport): # {{{
+class HandlerReport(Handler, Report): # {{{
 	"""
 	"""
 	def __init__(self, server):
-		RequestReport.__init__(self)
-		RequestHandler.__init__(self, server)
+		Report.__init__(self)
+		Handler.__init__(self, server)
 
 	def _handleRequest(self,params):
 		# TODO
@@ -428,23 +428,23 @@ class RequestHandlerReport(RequestHandler, RequestReport): # {{{
 
 # }}}
 
-class RequestHandlerCopyright(RequestHandler, RequestCopyright): # {{{
+class HandlerCopyright(Handler, Copyright): # {{{
 	"""
 	"""
 	def __init__(self, server):
-		RequestCopyright.__init__(self)
-		RequestHandler.__init__(self, server)
+		Copyright.__init__(self)
+		Handler.__init__(self, server)
 
 	def _handleRequest(self,params):
 		return [[copyright]]
 
 # }}}
 
-class RequestHandlerHelp(RequestHandler, RequestHelp): # {{{
+class HandlerHelp(Handler, Help): # {{{
 
 	def __init__(self, server):
-		RequestHelp.__init__(self)
-		RequestHandler.__init__(self, server)
+		Help.__init__(self)
+		Handler.__init__(self, server)
 
 	def _handleRequest(self,params):
 		ret = []
@@ -460,11 +460,11 @@ class RequestHandlerHelp(RequestHandler, RequestHelp): # {{{
 
 # }}}
 
-class RequestHandlerRLSRegister(RequestHandler, RequestRLSRegister): # {{{
+class HandlerRLSRegister(Handler, RLSRegister): # {{{
 
 	def __init__(self, server):
-		RequestRLSRegister.__init__(self)
-		RequestHandler.__init__(self, server)
+		RLSRegister.__init__(self)
+		Handler.__init__(self, server)
 		self.serverlist = self._server._serverlist
 
 	def _handleRequest(self, params):
@@ -473,11 +473,11 @@ class RequestHandlerRLSRegister(RequestHandler, RequestRLSRegister): # {{{
 
 # }}}
 
-class RequestHandlerRLSUnRegister(RequestHandler, RequestRLSUnRegister): # {{{
+class HandlerRLSUnRegister(Handler, RLSUnRegister): # {{{
 
 	def __init__(self, server):
-		RequestRLSUnRegister.__init__(self)
-		RequestHandler.__init__(self, server)
+		RLSUnRegister.__init__(self)
+		Handler.__init__(self, server)
 		self.serverlist = self._server._serverlist
 
 	def _handleRequest(self, params):
@@ -486,22 +486,22 @@ class RequestHandlerRLSUnRegister(RequestHandler, RequestRLSUnRegister): # {{{
 
 # }}}
 
-class RequestHandlerRLSUpdate(RequestHandler, RequestRLSUpdate): # {{{
+class HandlerRLSUpdate(Handler, RLSUpdate): # {{{
 
 	def __init__(self, server):
-		RequestRLSUpdate.__init__(self)
-		RequestHandler.__init__(self, server)
+		RLSUpdate.__init__(self)
+		Handler.__init__(self, server)
 
 	def _handleRequest(self, params):
 		ret = []
 		return ret
 # }}}
 
-class RequestHandlerRLSFullUpdate(RequestHandler, RequestRLSFullUpdate): # {{{
+class HandlerRLSFullUpdate(Handler, RLSFullUpdate): # {{{
 
 	def __init__(self, server):
-		RequestRLSFullUpdate.__init__(self)
-		RequestHandler.__init__(self, server)
+		RLSFullUpdate.__init__(self)
+		Handler.__init__(self, server)
 
 	def _handleRequest(self, params):
 		ret = []

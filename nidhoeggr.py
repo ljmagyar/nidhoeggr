@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.41 2004/03/09 20:39:19 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.42 2004/03/09 20:52:42 ridcully Exp $"
 
 copyright = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -29,7 +29,7 @@ import random
 
 from config import config, DEFAULT_RACELISTPORT, DEFAULT_BROADCASTPORT
 from tools import *
-from request import *
+import request
 import paramchecks
 
 class RaceList(StopableThread): # {{{
@@ -585,20 +585,20 @@ class Server(SocketServer.ThreadingTCPServer): # {{{
 		self._serverlist = RLServerList()
 
 		self._requesthandlers = {}
-		self._addRequestHandler(RequestHandlerLogin(self))
-		self._addRequestHandler(RequestHandlerReqFull(self))
-		self._addRequestHandler(RequestHandlerHost(self))
-		self._addRequestHandler(RequestHandlerJoin(self))
-		self._addRequestHandler(RequestHandlerLeave(self))
-		self._addRequestHandler(RequestHandlerEndHost(self))
-		self._addRequestHandler(RequestHandlerReport(self))
-		self._addRequestHandler(RequestHandlerRLSRegister(self))
-		self._addRequestHandler(RequestHandlerRLSUnRegister(self))
-		self._addRequestHandler(RequestHandlerRLSUpdate(self))
-		self._addRequestHandler(RequestHandlerRLSFullUpdate(self))
-		self._addRequestHandler(RequestHandlerCopyright(self))
+		self._addRequestHandler(request.HandlerLogin(self))
+		self._addRequestHandler(request.HandlerReqFull(self))
+		self._addRequestHandler(request.HandlerHost(self))
+		self._addRequestHandler(request.HandlerJoin(self))
+		self._addRequestHandler(request.HandlerLeave(self))
+		self._addRequestHandler(request.HandlerEndHost(self))
+		self._addRequestHandler(request.HandlerReport(self))
+		self._addRequestHandler(request.HandlerRLSRegister(self))
+		self._addRequestHandler(request.HandlerRLSUnRegister(self))
+		self._addRequestHandler(request.HandlerRLSUpdate(self))
+		self._addRequestHandler(request.HandlerRLSFullUpdate(self))
+		self._addRequestHandler(request.HandlerCopyright(self))
 		if __debug__:
-			self._addRequestHandler(RequestHandlerHelp(self))
+			self._addRequestHandler(request.HandlerHelp(self))
 
 		self._inshutdown = 0
 		self._requests_rwlock = ReadWriteLock()
@@ -862,7 +862,7 @@ class Client(Middleware): # {{{
 		self.server_address = (server,port)
 
 	def doLogin(self, client_uniq_id):
-		result = self.doRequest([['login', PROTOCOL_VERSION, SERVER_VERSION, client_uniq_id]])
+		result = self.doRequest([['login', request.PROTOCOL_VERSION, SERVER_VERSION, client_uniq_id]])
 		self.client_id = result[0][2]
 		return result
 
