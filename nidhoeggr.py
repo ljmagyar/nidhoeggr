@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.59 2004/05/02 13:22:20 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.60 2004/05/08 16:33:40 ridcully Exp $"
 
 __copyright__ = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -83,6 +83,13 @@ class RaceList(StopableThread): # {{{
 				del self._users[client_id]
 		finally:
 			self._users_rwlock.release_write()
+		self._races_rwlock.acquire_write()
+		try:
+			for race in self._races.values():
+				race.removeDriver(client_id)
+			self._buildRaceListAsReply()
+		finally:
+			self._races_rwlock.release_write()
 
 	def getUser(self,client_id):
 		self._users_rwlock.acquire_read()
@@ -138,9 +145,9 @@ class RaceList(StopableThread): # {{{
 	def driverLeaveRace(self,server_id,client_id):
 		self._races_rwlock.acquire_write()
 		try:
-			for race in self._races.values():
-				race.removeDriver(client_id)
-			self._buildRaceListAsReply()
+			if self.hasRace(server_id):
+				self._races[server_id].removeDriver(client_id)
+				self._buildRaceListAsReply()
 		finally:
 			self._races_rwlock.release_write()
 
@@ -158,11 +165,12 @@ class RaceList(StopableThread): # {{{
 		finally:
 			self._races_rwlock.release_read()
 
-	def updateRaceViaBroadcast(self, broadcastid, players, maxplayers, racetype, trackdir, sessiontype, sessionleft):
+	def updateRaceViaBroadcast(self, params):
 		self._races_rwlock.acquire_write()
 		try:
+			broadcastid = "%s:%s" % (params['name'], params['joinport'])
 			if self._racesbroadcasts.has_key(broadcastid):
-				self._racesbroadcasts[broadcastid].updateRaceViaBroadcast(players, maxplayers, racetype, trackdir, sessiontype, sessionleft)
+				self._racesbroadcasts[broadcastid].updateRaceViaBroadcast(params['players'], params['maxplayers'], params['racetype'], params['trackdir'], params['sessiontype'], params['sessionleft'])
 				self._buildRaceListAsReply()
 		finally:
 			self._races_rwlock.release_write()
@@ -282,7 +290,7 @@ class Race(IdleWatcher): # {{{
 				self.params['ip'] = random.choice([ '193.99.144.71', '206.231.101.19', '80.15.238.104', '80.15.238.102' ])
 		if not self.params.has_key('server_id'):
 			self.params["server_id"] = sha.new("%s%s%s%s%s" % (self.params['client_id'], self.params['ip'], self.params['joinport'], time.time(), random.randint(0,1000000))).hexdigest()
-		self.params["broadcastid"] = "%s:%s" % (self.params['ip'], self.params['joinport'])
+		self.params["broadcastid"] = "%s:%s" % (self.params['name'], self.params['joinport'])
 
 		self.params["sessiontype"] = 0
 		self.params["sessionleft"] = self.params['praclength']
@@ -803,7 +811,7 @@ class RaceListServer(SocketServer.ThreadingTCPServer, StopableThread): # {{{
 
 		self._racelist = RaceList(self)
 		self._serverlist = RLServerList(self)
-		self._broadcastserver = BroadCastServer(self._racelist)
+		self._broadcastserver = BroadCastServer(self)
 
 		self._requesthandlers = {}
 		self._addRequestHandler(request.HandlerLogin(self))
@@ -814,6 +822,7 @@ class RaceListServer(SocketServer.ThreadingTCPServer, StopableThread): # {{{
 		self._addRequestHandler(request.HandlerJoin(self))
 		self._addRequestHandler(request.HandlerLeave(self))
 		self._addRequestHandler(request.HandlerEndHost(self))
+		self._addRequestHandler(request.HandlerBroadcast(self))
 		self._addRequestHandler(request.HandlerReport(self))
 		self._addRequestHandler(request.HandlerRLSRegister(self))
 		self._addRequestHandler(request.HandlerRLSUnRegister(self))
@@ -939,12 +948,12 @@ class RaceListServerRequestHandler(SocketServer.StreamRequestHandler, Middleware
 
 class BroadCastServer(SocketServer.ThreadingUDPServer, StopableThread): # {{{
 
-	def __init__(self,racelist):
+	def __init__(self,racelistserver):
 		log(Log.INFO,"init broadcast server on port %s:%d" % (config.servername, config.broadcastport))
 
 		StopableThread.__init__(self)
 		
-		self.racelist = racelist
+		self._racelistserver = racelistserver
 		self.allow_reuse_address = 1
 		SocketServer.ThreadingUDPServer.__init__(self,("",config.broadcastport),BroadCastServerRequestHandler)
 
@@ -963,37 +972,16 @@ class BroadCastServerRequestHandler(SocketServer.DatagramRequestHandler): # {{{
 	def handle(self):
 		try:
 			line = self.rfile.read(4096)
-			version, joinport, servername, trackdir, cardir, xplayers, classes, racetype, junk, hassession, sessiontype, timeinsession, passworded, maxping = line.split("\001")
-			broadcastid = "%s:%s" % (self.client_address[0],joinport)
-			players,maxplayers = xplayers.split('/')
+			broadcastdata = {}
+			broadcastdata['version'], broadcastdata['joinport'], broadcastdata['name'], broadcastdata['trackdir'], broadcastdata['cardir'], xplayers, broadcastdata['classes'], broadcastdata['racetype'], broadcastdata['junk'], hassession, broadcastdata['sessiontype'], broadcastdata['timeinsession'], broadcastdata['ispassworded'], broadcastdata['maxlatency'] = line[:-1].split("\001")
+			broadcastdata['players'], broadcastdata['maxplayers'] = xplayers.split('/')
 			if hassession=='N':
-				sessiontype = 0
-				sessionleft = 0
+				broadcastdata['sessiontype'] = '0'
+				broadcastdata['sessionleft'] = '0'
 			else:
-				sessionleft = timeinsession[1:]
-
-			error = paramchecks.check_players(players)
-			if error is not None:
-				raise Exception('in broadcast players check failed: %s' % error)
-			error = paramchecks.check_players(maxplayers)
-			if error is not None:
-				raise Exception('in broadcast maxplayers check failed: %s' % error)
-			error = paramchecks.check_racetype(racetype)
-			if error is not None:
-				raise Exception('in broadcast racetype check failed: %s' % error)
-			error = paramchecks.check_string(trackdir)
-			if error is not None:
-				raise Exception('in broadcast trackdir check failed: %s' % error)
-			error = paramchecks.check_sessiontype(sessiontype)
-			if error is not None:
-				raise Exception('in broadcast sessiontype check failed: %s' % error)
-			error = paramchecks.check_suint(sessionleft)
-			if error is not None:
-				raise Exception('in broadcast sessionleft check failed: %s' % error)
-
-			if __debug__:
-				log(Log.DEBUG, "got ping info: broadcastid=%s players=%s maxplayers=%s racetype=%s trackdir=%s sessiontype=%s sessionleft=%s" % (broadcastid, players, maxplayers, racetype, trackdir, sessiontype, sessionleft))
-			self.server.racelist.updateRaceViaBroadcast(broadcastid, players, maxplayers, racetype, trackdir, sessiontype, sessionleft)
+				broadcastdata['sessionleft'] = broadcastdata['timeinsession'][1:]
+			rq_broadcast = request.Broadcast()
+			self.server._racelistserver.handleRequest(self.client_address,rq_broadcast.generateCompleteRequest(broadcastdata))
 		except Exception, e:
 			# can not much do about it
 			log(Log.DEBUG, e)

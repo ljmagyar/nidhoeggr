@@ -237,6 +237,27 @@ class Help(Request): # {{{
 
 # }}}
 
+class Broadcast(Request): # {{{
+	command ="broadcast"
+	paramconfig = [
+		Param("version",paramchecks.check_string,""),
+		Param("joinport",paramchecks.check_suint,""),
+		Param("name",paramchecks.check_string,""),
+		Param("trackdir",paramchecks.check_string,""),
+		Param("cardir",paramchecks.check_string,""),
+		Param("players",paramchecks.check_players,""),
+		Param("maxplayers",paramchecks.check_players,""),
+		Param("classes",paramchecks.check_string,""),
+		Param("sessiontype",paramchecks.check_sessiontype,""),
+		Param("sessionleft",paramchecks.check_suint,""),
+		Param("ispassworded",paramchecks.check_string,""),
+		Param("maxlatency",paramchecks.check_suint,"")
+	]
+	description = """Broadcast from a race server."""
+	resultdescription = """none."""
+
+# }}}
+
 class RLSRegister(Request): # {{{
 	command = "rls_register"
 	paramconfig = [
@@ -507,6 +528,17 @@ class HandlerHelp(Handler, Help): # {{{
 			ret.append(['result', rh.resultdescription])
 		return ret
 
+# }}}
+
+class HandlerBroadcast(Handler, Broadcast): # {{{
+	
+	def __init__(self, server):
+		Broadcast.__init__(self)
+		Handler.__init__(self, server)
+
+	def _handleRequest(self, params):
+		self._server._racelist.updateRaceViaBroadcast(params)
+		return []
 # }}}
 
 class HandlerRLSRegister(Handler, RLSRegister): # {{{
