@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.52 2004/04/25 13:31:21 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.53 2004/04/25 14:25:17 ridcully Exp $"
 
 __copyright__ = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -481,10 +481,14 @@ class RLServerList(StopableThread): # {{{
 		self._servers_rwlock.acquire_write()
 		try:
 			if self.hasRLServer(rls_id):
-				return self._servers[rls_id].getUpdate(current_load)
-			raise Error(Error.AUTHERROR, 'unknown server')
+				ret = self._servers[rls_id].getUpdate(current_load)
+			else:
+				raise Error(Error.AUTHERROR, 'unknown server')
 		finally:
 			self._servers_rwlock.release_write()
+		# with the update comes also the current load so we rebuild the lists
+		self._buildServerListReply()
+		return ret
 
 	def addRequest(self, values):
 		self._servers_rwlock.acquire_write()
@@ -529,11 +533,12 @@ class RLServerList(StopableThread): # {{{
 				sortlist[server.load_diff].append(server)
 			slk = sortlist.keys()
 			slk.sort()
+			slk.reverse()
 			self._simpleserverlistreply = []
 			self._fullserverlistreply = []
 			for load_diff in slk:
 				for server in sortlist[load_diff]:
-					self._simpleserverlistreply.append((server.params['rls_id'], server.params['name'], server.params['ip'], server.params['port']))
+					self._simpleserverlistreply.append((server.params['name'], server.params['port']))
 					self._fullserverlistreply.append((server.params['rls_id'], server.params['name'], server.params['ip'], server.params['port'], server.params['maxload']))
 		finally:
 			self._servers_rwlock.release_read()
