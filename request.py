@@ -4,7 +4,6 @@ import paramchecks
 PROTOCOL_VERSION="scary v1.1"
 
 class Param: # {{{
-	""""""
 	def __init__(self, paramname, check, help):
 		self.paramname = paramname
 		self.check = check
@@ -16,300 +15,262 @@ class Param: # {{{
 # }}}
 
 class Request: # {{{
-	def __init__(self,command,paramconfig,description,resultdescription):
-		self.command = command
-		self.paramconfig = paramconfig
-		self.description = description
-		self.resultdescription = resultdescription
-		self.distributable = 0
+	distributable = 0
+	command = None
+	paramconfig = None
+	description = None
+	resultdescription = None
 
-	def setParams(self,params):
-		self.params = params
+	def __init__(self): pass
+
+	def generateRequest(self, params):
+		ret = [self.command]
+		for pc in self.paramconfig:
+			ret.append(params[pc.paramname])
+		return ret
+
+	def generateCompleteRequest(self, params):
+		return [self.generateRequest(params)]
+
+	def generateDistributableRequest(self, params):
+		return [params['ip']] + self.generateRequest(params)
 
 # }}}
 
 class DistributableRequest(Request): # {{{
-	def __init__(self, command, paramconfig, description, resultdescription):
-		Request.__init__(self, command, paramconfig, description, resultdescription)
-		self.distributable = 1
+	distributable = 1
 
 # }}}
 
 class Login(Request): # {{{
-	def __init__(self):
-		Request.__init__( self,
-			"login",
-			[
-				Param("protocol_version",paramchecks.check_string,"version of the protocol, the client expects"),
-				Param("client_version", paramchecks.check_string, "name/version string of the client"),
-				Param("client_uniqid", paramchecks.check_string, "some uniq id of the client")
-			],
-			"""Login of the client/user onto the server. This command must be called before all others. This command will assure, that client and server speak the same version of the protocol.""",
-			"""The reply contains 4 cells: protocol version, server version, client id for further requests, ip the connection came from."""
-		)
+	command ="login"
+	paramconfig = [
+		Param("protocol_version",paramchecks.check_string,"version of the protocol, the client expects"),
+		Param("client_version", paramchecks.check_string, "name/version string of the client"),
+		Param("client_uniqid", paramchecks.check_string, "some uniq id of the client")
+	]
+	description = """Login of the client/user onto the server. This command must be called before all others. This command will assure, that client and server speak the same version of the protocol."""
+	resultdescription = """The reply contains 4 cells: protocol version, server version, client id for further requests, ip the connection came from."""
 
 # }}}
 
 class NewUser(Request): # {{{
-	def __init__(self):
-		Request.__init__( self,
-			"login",
-			[
-				Param("client_id",paramchecks.check_string,"the client_id a client got assigned from the server it logged in"),
-				Param("protocol_version",paramchecks.check_string,"version of the protocol, the client expects"),
-				Param("client_version", paramchecks.check_string, "name/version string of the client"),
-				Param("client_uniqid", paramchecks.check_string, "some uniq id of the client")
-			],
-			"""This command is only distributed to the other race list servers; its similar to the Login command but contains the client_id the client got assigned from the server""",
-			"""The reply contains 4 cells: protocol version, server version, client id for further requests, ip the connection came from."""
-		)
+	command = "newuser"
+	paramconfig = [
+		Param("client_id",paramchecks.check_string,"the client_id a client got assigned from the server it logged in"),
+		Param("protocol_version",paramchecks.check_string,"version of the protocol, the client expects"),
+		Param("client_version", paramchecks.check_string, "name/version string of the client"),
+		Param("client_uniqid", paramchecks.check_string, "some uniq id of the client")
+	]
+	description = """This command is only distributed to the other race list servers; its similar to the Login command but contains the client_id the client got assigned from the server"""
+	resultdescription = """The reply contains 4 cells: protocol version, server version, client id for further requests, ip the connection came from."""
 
 # }}}
 
 class Host(DistributableRequest): # {{{
-	def __init__(self):
-		DistributableRequest.__init__( self, 
-			"host", 
-			[
-				Param("client_id", paramchecks.check_string, ""), 
-				Param("joinport", paramchecks.check_suint, ""), 
-				Param("name", paramchecks.check_string, ""), 
-				Param("info1", paramchecks.check_string, ""), 
-				Param("info2", paramchecks.check_string, ""), 
-				Param("comment", paramchecks.check_string, ""), 
-				Param("isdedicatedserver", paramchecks.check_boolean, ""),
-				Param("ispassworded", paramchecks.check_boolean, ""), 
-				Param("isbosspassworded", paramchecks.check_boolean, ""), 
-				Param("isauthenticedserver", paramchecks.check_boolean, ""),
-				Param("allowedchassis", paramchecks.check_chassisbitfield, ""),
-				Param("allowedcarclasses", paramchecks.check_carclassbitfield, ""),
-				Param("allowsengineswapping", paramchecks.check_boolean, ""),
-				Param("modindent", paramchecks.check_string, ""),
-				Param("maxlatency", paramchecks.check_suint, ""), 
-				Param("bandwidth", paramchecks.check_bandwidthfield, ""),
-				Param("maxplayers", paramchecks.check_players, ""),
-				Param("trackdir", paramchecks.check_string, ""), 
-				Param("racetype", paramchecks.check_racetype, ""), 
-				Param("praclength", paramchecks.check_suint, ""),
-				Param("aiplayers", paramchecks.check_players, ""),
-				Param("numraces", paramchecks.check_suint, ""),
-				Param("repeatcount", paramchecks.check_suint, ""),
-				Param("flags", paramchecks.check_string, ""),
-				Param("firstname", paramchecks.check_string, ""), 
-				Param("lastname", paramchecks.check_string, ""), 
-				Param("class_id", paramchecks.check_class, ""), 
-				Param("team_id", paramchecks.check_team, ""), 
-				Param("mod_id", paramchecks.check_string, ""), 
-				Param("nationality", paramchecks.check_nationality, ""), 
-				Param("helmet_colour", paramchecks.check_helmetcolour, "")
-			],
-			"""Starts hosting of a race. The given informations are used to describe the race and will be displayed in the same order in the racelist.""",
-			"""A unique id for the server, that will be used to update the hosting and race informations and also by the clients to join/leave the race and the IP address the request came from"""
-		)
+	command = "host"
+	paramconfig = [
+		Param("client_id", paramchecks.check_string, ""), 
+		Param("joinport", paramchecks.check_suint, ""), 
+		Param("name", paramchecks.check_string, ""), 
+		Param("info1", paramchecks.check_string, ""), 
+		Param("info2", paramchecks.check_string, ""), 
+		Param("comment", paramchecks.check_string, ""), 
+		Param("isdedicatedserver", paramchecks.check_boolean, ""),
+		Param("ispassworded", paramchecks.check_boolean, ""), 
+		Param("isbosspassworded", paramchecks.check_boolean, ""), 
+		Param("isauthenticedserver", paramchecks.check_boolean, ""),
+		Param("allowedchassis", paramchecks.check_chassisbitfield, ""),
+		Param("allowedcarclasses", paramchecks.check_carclassbitfield, ""),
+		Param("allowsengineswapping", paramchecks.check_boolean, ""),
+		Param("modindent", paramchecks.check_string, ""),
+		Param("maxlatency", paramchecks.check_suint, ""), 
+		Param("bandwidth", paramchecks.check_bandwidthfield, ""),
+		Param("maxplayers", paramchecks.check_players, ""),
+		Param("trackdir", paramchecks.check_string, ""), 
+		Param("racetype", paramchecks.check_racetype, ""), 
+		Param("praclength", paramchecks.check_suint, ""),
+		Param("aiplayers", paramchecks.check_players, ""),
+		Param("numraces", paramchecks.check_suint, ""),
+		Param("repeatcount", paramchecks.check_suint, ""),
+		Param("flags", paramchecks.check_string, ""),
+		Param("firstname", paramchecks.check_string, ""), 
+		Param("lastname", paramchecks.check_string, ""), 
+		Param("class_id", paramchecks.check_class, ""), 
+		Param("team_id", paramchecks.check_team, ""), 
+		Param("mod_id", paramchecks.check_string, ""), 
+		Param("nationality", paramchecks.check_nationality, ""), 
+		Param("helmet_colour", paramchecks.check_helmetcolour, "")
+	]
+	description = """Starts hosting of a race. The given informations are used to describe the race and will be displayed in the same order in the racelist."""
+	resultdescription = """A unique id for the server, that will be used to update the hosting and race informations and also by the clients to join/leave the race and the IP address the request came from"""
+
 # }}}
 
 class Join(DistributableRequest): # {{{
-	"""
-	"""
-	def __init__(self):
-		DistributableRequest.__init__(self, 
-			"join", 
-			[
-				Param("server_id", paramchecks.check_string, ""), 
-				Param("client_id", paramchecks.check_string, ""), 
-				Param("firstname", paramchecks.check_string, ""), 
-				Param("lastname", paramchecks.check_string, ""), 
-				Param("class_id", paramchecks.check_class, ""), 
-				Param("team_id", paramchecks.check_team, ""), 
-				Param("mod_id", paramchecks.check_string, ""), 
-				Param("nationality", paramchecks.check_nationality, ""), 
-				Param("helmet_colour", paramchecks.check_helmetcolour, "")
-			],
-			"""The client with the given id joins the server with the given id. Several informations about the driver itself are also submited for the list of races and their drivers.""",
-			"""Nothing."""
-		)
+	command = "join"
+	paramconfig = [
+		Param("server_id", paramchecks.check_string, ""), 
+		Param("client_id", paramchecks.check_string, ""), 
+		Param("firstname", paramchecks.check_string, ""), 
+		Param("lastname", paramchecks.check_string, ""), 
+		Param("class_id", paramchecks.check_class, ""), 
+		Param("team_id", paramchecks.check_team, ""), 
+		Param("mod_id", paramchecks.check_string, ""), 
+		Param("nationality", paramchecks.check_nationality, ""), 
+		Param("helmet_colour", paramchecks.check_helmetcolour, "")
+	]
+	description = """The client with the given id joins the server with the given id. Several informations about the driver itself are also submited for the list of races and their drivers."""
+	resultdescription = """Nothing."""
+	
 # }}}
 
 class Leave(DistributableRequest): # {{{
-	"""
-	"""
-	def __init__(self):
-		DistributableRequest.__init__(self, 
-			"leave", 
-			[
-				Param("server_id", paramchecks.check_string, ""), 
-				Param("client_id", paramchecks.check_string, "")
-			],
-			"""Removes the client with the given id from the server with the given id.""",
-			"""Nothing."""
-		)
+	command = "leave"
+	paramconfig = [
+		Param("server_id", paramchecks.check_string, ""), 
+		Param("client_id", paramchecks.check_string, "")
+	]
+	description = """Removes the client with the given id from the server with the given id."""
+	resultdescription = """Nothing."""
+
 # }}}
 
 class EndHost(DistributableRequest): # {{{
-	"""
-	"""
-	def __init__(self):
-		DistributableRequest.__init__(self, 
-			"endhost", 
-			[
-				Param("server_id", paramchecks.check_string, ""),
-				Param("client_id", paramchecks.check_string, "")
-			],
-			"""Stops the hosting of the race with the given id.""",
-			"""Nothing."""
-		)
+	command = "endhost"
+	paramconfig = [
+		Param("server_id", paramchecks.check_string, ""),
+		Param("client_id", paramchecks.check_string, "")
+	]
+	description = """Stops the hosting of the race with the given id."""
+	resultdescription = """Nothing."""
+ 
 # }}}
 
 class ReqFull(Request): # {{{
+	command = "req_full"
+	paramconfig = [
+		Param("client_id", paramchecks.check_string, "")
+	]
+	description = """Returns a list of races and the drivers in this races."""
+	resultdescription = """The complete current racelist. Each line holds either a race or following the drivers of a race. Each line starts either with a cell containing R or D. Races consist of the following: 
+		
+	R, 
+	server_id, 
+	ip, 
+	joinport, 
+	name, 
+	info1, 
+	info2, 
+	comment, 
+	isdedicatedserver, 
+	ispassworded, 
+	isbosspassworded, 
+	isauthenticedserver, 
+	allowedchassis, 
+	allowedcarclasses, 
+	allowsengineswapping, 
+	modindent, 
+	maxlatency, 
+	bandwidth, 
+	players,
+	maxplayers, 
+	trackdir, 
+	racetype, 
+	praclength, 
+	sessionleft, 
+	sessiontype,
+	aiplayers,
+	numraces,
+	repeatcount,
+	flags
+
+
+	The drivers contain this data:
+
+	D,
+	firstname,
+	lastname,
+	class_id,
+	team_id,
+	mod_id,
+	nationality,
+	helmet_colour,
+	qualifying_time,
+	race_position,
+	race_laps,
+	race_notes
 	"""
-	"""
-	def __init__(self):
-		Request.__init__(self, 
-			"req_full", 
-			[
-				Param("client_id", paramchecks.check_string, "")
-			],
-			"""Returns a list of races and the drivers in this races.""",
-			"""The complete current racelist. Each line holds either a race or following the drivers of a race. Each line starts either with a cell containing R or D. Races consist of the following: 
-				
-			R, 
-			server_id, 
-			ip, 
-			joinport, 
-			name, 
-			info1, 
-			info2, 
-			comment, 
-			isdedicatedserver, 
-			ispassworded, 
-			isbosspassworded, 
-			isauthenticedserver, 
-			allowedchassis, 
-			allowedcarclasses, 
-			allowsengineswapping, 
-			modindent, 
-			maxlatency, 
-			bandwidth, 
-			players,
-			maxplayers, 
-			trackdir, 
-			racetype, 
-			praclength, 
-			sessionleft, 
-			sessiontype,
-			aiplayers,
-			numraces,
-			repeatcount,
-			flags
 
-
-			The drivers contain this data:
-
-			D,
-			firstname,
-			lastname,
-			class_id,
-			team_id,
-			mod_id,
-			nationality,
-			helmet_colour,
-			qualifying_time,
-			race_position,
-			race_laps,
-			race_notes
-			"""
-		)
 # }}}
 
 class Report(Request): # {{{
-	
-	def __init__(self):
-		Request.__init__(self, 
-			"report", 
-			[
-				Param("server_id", paramchecks.check_string, "")
-			],
-			"""Updates the informations of the given server.""",
-			"""Nothing."""
-		)
+	comman = "report"
+	paramconfig = [
+		Param("server_id", paramchecks.check_string, "")
+	]
+	description = """Updates the informations of the given server."""
+	resultdescription = """Nothing."""
+ 
 # }}}
 
 class Copyright(Request): # {{{
+	command = "copyright"
+	paramconfig = []
+	description = """Returns a copyright notice about the protocol and the server."""
+	resultdescription = """String holding the text of the copyright notice."""
 
-	def __init__(self):
-		Request.__init__(self, 
-			"copyright", 
-			[],
-			"""Returns a copyright notice about the protocol and the server.""",
-			"""String holding the text of the copyright notice."""
-		)
 # }}}
 
 class Help(Request): # {{{
-	"""
-	"""
-	def __init__(self):
-		Request.__init__(self, 
-			"help", 
-			[],
-			"""Returns a list of all implemented commands.""",
-			"""For each command a line starting with command, then followed by a line for each param and finally a line starting with result, explaining the data sent back to the client."""
-		)
+	command = "help"
+	paramconfig = []
+	description = """Returns a list of all implemented commands."""
+	resultdescription = """For each command a line starting with command, then followed by a line for each param and finally a line starting with result, explaining the data sent back to the client."""
+
 # }}}
 
 class RLSRegister(Request): # {{{
+	command = "rls_register"
+	paramconfig = [
+		Param('rls_id', paramchecks.check_string, ''),
+		Param('name', paramchecks.check_string, ''),
+		Param('port', paramchecks.check_suint, ''),
+		Param('maxload', paramchecks.check_maxload, '')
+	]
+	description = """Registers a race list server for the reproduction"""
+	resultdescription = """List of the known race list servers"""
 
-	def __init__(self):
-		Request.__init__(self,
-			"rls_register",
-			[
-				Param('rls_id', paramchecks.check_string, ''),
-				Param('name', paramchecks.check_string, ''),
-				Param('port', paramchecks.check_suint, ''),
-				Param('maxload', paramchecks.check_maxload, '')
-			],
-			"""Registers a race list server for the reproduction""",
-			"""List of the known race list servers"""
-		)
 # }}}
 
 class RLSUnRegister(Request): # {{{
+	command = "rls_unregister"
+	paramconfig = [
+		Param('rls_id', paramchecks.check_string, '')
+	]
+	description = """Removes the race list server from the known servers"""
+	resultdescription = """Nothing"""
 
-	def __init__(self):
-		Request.__init__(self,
-			"rls_unregister",
-			[
-				Param('rls_id', paramchecks.check_string, '')
-			],
-			"""Removes the race list server from the known servers""",
-			"""Nothing"""
-		)
 # }}}
 
 class RLSUpdate(Request): # {{{
+	command = "rls_update"
+	paramconfig = [
+		Param('rls_id', paramchecks.check_string, '')
+	]
+	description = """A list of all updates from a certain server"""
+	resultdescription = """List of all requests on this server since the last call of this function"""
 
-	def __init__(self):
-		Request.__init__(self,
-			"rls_update",
-			[
-				Param('rls_id', paramchecks.check_string, '')
-			],
-			"""A list of all updates from a certain server""",
-			"""List of all requests on this server since the last call of this function"""
-		)
 # }}}
 
 class RLSFullUpdate(Request): # {{{
+	command = "rls_fullupdate"
+	paramconfig = [
+		Param('rls_id', paramchecks.check_string, '')
+	]
+	description = """Complete list of all data from the server; this is used after the registration to get the complete data from the choosen master"""
+	resultdescription = """All Users, Races and their Drivers on this server"""
 
-	def __init__(self):
-		Request.__init__(self,
-			"rls_fullupdate",
-			[
-				Param('rls_id', paramchecks.check_string, '')
-			],
-			"""Complete list of all data from the server; this is used after the registration to get the complete data from the choosen master""",
-			"""All Users, Races and their Drivers on this server"""
-		)
 # }}}
 
 class Handler: # {{{
@@ -368,6 +329,9 @@ class HandlerLogin(Handler, Login): # {{{
 		if user is None:
 			user = nidhoeggr.User(params["client_uniqid"],params['ip'])
 			self._server._racelist.addUser(user)
+			newuser = NewUser()
+			params['client_id'] = user.params['client_id']
+			self._server._serverlist.addRequest(newuser.generateRequest(params))
 
 		ret = [[PROTOCOL_VERSION,nidhoeggr.SERVER_VERSION,user.params['client_id'],user.params['outside_ip']]]
 		return ret + self._server._serverlist.getSimpleServerListAsReply()
@@ -539,8 +503,8 @@ class HandlerRLSUpdate(Handler, RLSUpdate): # {{{
 		Handler.__init__(self, server)
 
 	def _handleRequest(self, params):
-		ret = self._serverlist.getUpdate(params['rls_id'])
-		return [ret]
+		ret = self._server._serverlist.getUpdate(params['rls_id'])
+		return ret
 # }}}
 
 class HandlerRLSFullUpdate(Handler, RLSFullUpdate): # {{{

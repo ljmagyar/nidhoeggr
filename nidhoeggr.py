@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.48 2004/03/25 21:44:23 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.49 2004/03/29 08:53:00 ridcully Exp $"
 
 __copyright__ = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -38,8 +38,10 @@ class RaceList(StopableThread): # {{{
 	STATE_RUN = 2
 	STATE_STOP = 3
 
-	def __init__(self):
+	def __init__(self, racelistserver):
 		StopableThread.__init__(self,config.racelist_clean_interval)
+
+		self._racelistserver = racelistserver
 
 		self._users = {}
 		self._usersuniqids = {}
@@ -156,7 +158,6 @@ class RaceList(StopableThread): # {{{
 				self.reqfull.append(driver.getDriverAsReply())
 
 	def getRaceListAsReply(self):
-		ret = []
 		self._races_rwlock.acquire_read()
 		try:
 			return self.reqfull
@@ -365,6 +366,7 @@ class RLServer(IdleWatcher): # {{{
 	def _initstateless(self):
 		self.requests = []
 		self.setActive()
+		self.getfull = 1
 	
 	def getUpdate(self):
 		self.setActive()
@@ -385,12 +387,17 @@ class RLServer(IdleWatcher): # {{{
 
 class RLServerList(StopableThread): # {{{
 
-	def __init__(self):
-		StopableThread.__init__(self,config.serverlist_clean_interval)
+	def __init__(self,racelistserver):
+		StopableThread.__init__(self,config.server_update)
+		self._racelistserver = racelistserver
 		self._rls_id = sha.new("%s%s%s" % (SERVER_VERSION,config.servername,config.racelistport)).hexdigest()
 		self._servers = {}
 		self._servers_rwlock = ReadWriteLock()
 		self._load()
+		self.client = None
+
+	def isSelf(self, rlserver):
+		return rlserver.params['rls_id'] == self._rls_id
 
 	def hasRLServer(self, rls_id):
 		return self._servers.has_key(rls_id)
@@ -420,7 +427,7 @@ class RLServerList(StopableThread): # {{{
 		if not self._servers.has_key(rls_id):
 			return
 		# check for the same ip, as the server has registered
-		rls = self._servers[rls_id]
+		rls = self.getRLServer(rls_id)
 		if not ip==rls.params['ip']:
 			return
 		# delete the server from the list
@@ -434,9 +441,9 @@ class RLServerList(StopableThread): # {{{
 	def getUpdate(self, rls_id):
 		self._servers_rwlock.acquire_write()
 		try:
-			if self._servers.has_key(rls_id):
-				return self._servers[rls_id].getUpdate()
-			return None
+			if self.hasRLServer(rls_id):
+				return self.getRLServer(rls_id).getUpdate()
+			raise Error(Error.AUTHERROR, 'unknown server')
 		finally:
 			self._servers_rwlock.release_write()
 
@@ -458,15 +465,14 @@ class RLServerList(StopableThread): # {{{
 		except Exception, e:
 			log(Log.WARNING, "failed to load server list from file '%s': %s" % (filename, e))
 		self._buildServerListReply()
-		self.client = None
 	
 	def _save(self):
 		filename = config.file_serverlist
 		log(Log.INFO, "save the server list to file '%s'" % (filename))
 		try:
 			f = open(filename, "w")
+			self._servers_rwlock.acquire_read()
 			try:
-				self._servers_rwlock.acquire_read()
 				cPickle.dump(self._servers,f,1)
 			finally:
 				self._servers_rwlock.release_read()
@@ -496,21 +502,44 @@ class RLServerList(StopableThread): # {{{
 
 	def _run(self):
 		ct = time.time()
-		self._servers_rwlock.acquire_write()
-		try:
-			for rls_id in self._servers.keys():
-				server = self._servers[rls_id]
-				if server.checkTimeout(ct):
-					log(Log.INFO, "dropping race list server %s (%s:%d) due to a a time out" % (server.params['rls_id'], server.params['name'], server.params['port']))
+		for rls_id in self._servers.keys():
+			rls = self.getRLServer(rls_id)
+			if self.isSelf(rls):
+				continue
+			try:
+				client = Client(rls.params['ip'],int(rls.params['port']))
+				if rls.getfull:
+					rq = request.RLSFullUpdate()
+				else:
+					rq = request.RLSUpdate()
+				result = client.doRequest(rq.generateCompleteRequest({"rls_id":rls_id}))
+				for row in result:
+					self._racelistserver.handleDistributedRequest(row)
+				rls.getfull = 0
+			except Exception, e:
+				log(Log.WARNING, "error getting update from rls=%s - deleting: %s" % (rls_id,e))
+				self._servers_rwlock.acquire_write()
+				try:
 					del self._servers[rls_id]
-		finally:
-			self._servers_rwlock.release_write()
+				finally:
+					self._servers_rwlock.release_write()
+				continue
+
+			if rls.checkTimeout(ct):
+				log(Log.INFO, "dropping race list server %s (%s:%d) due to a a time out" % (rls.params['rls_id'], rls.params['name'], int(rls.params['port'])))
+				try:
+					del self._servers[rls_id]
+				finally:
+					self._servers_rwlock.release_write()
+		self._buildServerListReply()
 	
-	def getInitServer(self):
+	def getInitServerList(self):
+		ret = []
+		ret.append([config.initserver_name,config.initserver_port])
 		if len(self._servers):
 			rls = self._servers.values()[0]
-			return (rls.params['name'],int(rls.params['port']))
-		return (config.initserver_name,config.initserver_port)
+			ret.append([rls.params['name'],int(rls.params['port'])])
+		return ret
 
 # }}}
 
@@ -577,7 +606,6 @@ class Error(Exception): # {{{
 # }}}
 
 class Middleware: # {{{
-	
 
 	CLIENTINDENT="w196"
 	MODE_COMPRESS="c"
@@ -678,25 +706,25 @@ class Middleware: # {{{
 		data = self.readData()
 		request = []
 		for row in data.split(self.ROWSEPARATOR):
-			request.append(row.split(self.CELLSEPARATOR))
+			if len(row)!=0:
+				request.append(row.split(self.CELLSEPARATOR))
 		return request
 
 # }}}
 
 class RaceListServer(SocketServer.ThreadingTCPServer, StopableThread): # {{{
 
-	def __init__(self, racelist, serverlist):
+	def __init__(self):
 		log(Log.INFO,"init racelist server on %s:%d" % (config.servername,config.racelistport))
 		StopableThread.__init__(self)
 
-		self.allow_reuse_address = 1
-		SocketServer.ThreadingTCPServer.__init__(self,("",config.racelistport),RaceListServerRequestHandler)
-
-		self._racelist = racelist
-		self._serverlist = serverlist
+		self._racelist = RaceList(self)
+		self._serverlist = RLServerList(self)
+		self._broadcastserver = BroadCastServer(self._racelist)
 
 		self._requesthandlers = {}
 		self._addRequestHandler(request.HandlerLogin(self))
+		self._addRequestHandler(request.HandlerNewUser(self))
 		self._addRequestHandler(request.HandlerReqFull(self))
 		self._addRequestHandler(request.HandlerHost(self))
 		self._addRequestHandler(request.HandlerJoin(self))
@@ -717,6 +745,15 @@ class RaceListServer(SocketServer.ThreadingTCPServer, StopableThread): # {{{
 
 		self.register()
 
+		self.allow_reuse_address = 1
+		SocketServer.ThreadingTCPServer.__init__(self,("",config.racelistport),RaceListServerRequestHandler)
+
+	def start(self):
+		self._serverlist.start()
+		self._racelist.start()
+		StopableThread.start(self)
+		self._broadcastserver.start()
+
 	def _run(self):
 		(infd,outfd,errfd) = select.select([self.socket], [], [], 1.0) # timout 1s
 		if self.socket in infd:
@@ -725,6 +762,12 @@ class RaceListServer(SocketServer.ThreadingTCPServer, StopableThread): # {{{
 	def _join(self):
 		log(Log.INFO,"shutting down racelist server port %s:%d" % (config.servername, config.racelistport))
 		self.server_close()
+		log(Log.INFO,"waiting for broadcast server");
+		self._broadcastserver.join()
+		log(Log.INFO,"waiting for serverlist");
+		self._serverlist.join()
+		log(Log.INFO,"waiting for racelist");
+		self._racelist.join()
 
 	def _addRequestHandler(self,handler):
 		self._requesthandlers[handler.command] = handler
@@ -760,17 +803,24 @@ class RaceListServer(SocketServer.ThreadingTCPServer, StopableThread): # {{{
 			log(Log.INFO,"current load: %s" % self._load)
 
 	def register(self):
-		initserver_name,initserver_port = self._serverlist.getInitServer()
-		log(Log.INFO, "registering to init server %s:%d" % (initserver_name, initserver_port))
-		try:
-			client = Client(initserver_name,initserver_port)
-			result = client.doRequest([["rls_register", self._serverlist._rls_id, config.servername, str(config.racelistport), str(config.server_maxload)]])
-			for row in result:
-				# FIXME: dont use the string of the command here
-				params = [row[2], "rls_register", row[0], row[1], row[3], row[4]]
-				self.handleDistributedRequest(params)
-		except Exception, e:
-			log(Log.WARNING, "Error on registering to init server: %s" % e)
+		success = 0
+		initserverlist = self._serverlist.getInitServerList()
+		for initserver in initserverlist:
+			initserver_name, initserver_port = initserver
+			log(Log.INFO, "registering to init server %s:%d" % (initserver_name, initserver_port))
+			try:
+				client = Client(initserver_name,initserver_port)
+				rls_register = request.RLSRegister()
+				result = client.doRequest(rls_register.generateCompleteRequest({"rls_id":self._serverlist._rls_id, "name":config.servername, "port":str(config.racelistport), "maxload":str(config.server_maxload)}))
+				log(Log.INFO, "success - registering to the server list from the init server")
+				for row in result:
+					self.handleDistributedRequest(rls_register.generateDistributableRequest({'ip':row[2], 'rls_id':row[0], 'name':row[1], 'port':row[3], 'maxload':row[4]}))
+				success = 1
+				break
+			except Exception, e:
+				log(Log.WARNING, "Error on registering to init server: %s" % e)
+		if not success:
+			log(Log.WARNING, "failed to register to any other race list server; check your config if you are not intending to run this server as a root server" )
 # }}}
 
 class RaceListServerRequestHandler(SocketServer.StreamRequestHandler, Middleware): # {{{
@@ -802,7 +852,6 @@ class RaceListServerRequestHandler(SocketServer.StreamRequestHandler, Middleware
 # }}}
 
 class BroadCastServer(SocketServer.ThreadingUDPServer, StopableThread): # {{{
-	
 
 	def __init__(self,racelist):
 		log(Log.INFO,"init broadcast server on port %s:%d" % (config.servername, config.broadcastport))
@@ -866,33 +915,19 @@ class BroadCastServerRequestHandler(SocketServer.DatagramRequestHandler): # {{{
 # }}}
 
 class Server: # {{{
-	
 
 	def __init__(self):
-		self._racelist = RaceList()
-		self._serverlist = RLServerList()
-		self._racelistserver = RaceListServer(self._racelist, self._serverlist)
-		self._broadcastserver = BroadCastServer(self._racelist)
-
+		self._racelistserver = RaceListServer()
 		self._inshutdown = 0
 
 	def start(self):
-		self._serverlist.start()
-		self._racelist.start()
 		self._racelistserver.start()
-		self._broadcastserver.start()
 
 	def stop(self):
 		log(Log.INFO,"shutting down server");
 		self._inshutdown = 1
-		log(Log.INFO,"waiting for broadcast server");
-		self._broadcastserver.join(1.0)
 		log(Log.INFO,"waiting for racelist server");
-		self._racelistserver.join(1.0)
-		log(Log.INFO,"waiting for serverlist");
-		self._serverlist.join()
-		log(Log.INFO,"waiting for racelist");
-		self._racelist.join()
+		self._racelistserver.join()
 
 	def inShutdown(self):
 		return self._inshutdown!=0

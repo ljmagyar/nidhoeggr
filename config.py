@@ -33,7 +33,6 @@ class Config:
 		self.__registerConfigVariable(ConfigVariable('server_timeout',            90,                    paramchecks.check_suint,  int))
 		self.__registerConfigVariable(ConfigVariable('server_update',             30,                    paramchecks.check_suint,  int))
 		self.__registerConfigVariable(ConfigVariable('racelist_clean_interval',   60,                    paramchecks.check_suint,  int))
-		self.__registerConfigVariable(ConfigVariable('serverlist_clean_interval', 180,                   paramchecks.check_suint,  int))
 		self.__registerConfigVariable(ConfigVariable('server_maxload',            3,                     paramchecks.check_suint,  int))
 		self.__registerConfigVariable(ConfigVariable('file_racelist',             'racelist.cpickle',    paramchecks.check_string, str))
 		self.__registerConfigVariable(ConfigVariable('file_serverlist',           'serverlist.cpickle',  paramchecks.check_string, str))
