@@ -59,7 +59,7 @@ class DebugClient:
 		self.servername = servername
 		self.serverport = serverport
 
-	def run(self, verbose=1, delay=0):
+	def run(self, verbose=1, delay=None):
 		while 1:
 			c = nidhoeggr.Client('Dummy %f' % (random()),self.servername,self.serverport)
 			r = nidhoeggr.RequestSender(c, [[
@@ -115,8 +115,9 @@ class DebugClient:
 			if verbose:
 				for row in f.result:
 					print test(row[0]=='D', "\t", "")+str(row)
-			if delay>0:
-				sleep(randint(1,delay))
+			if delay is not None:
+				if delay>0:
+					sleep(randint(0,delay))
 			else:
 				break
 
