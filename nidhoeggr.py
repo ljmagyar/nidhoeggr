@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.4 2004/12/12 15:19:26 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.5 2004/12/13 10:07:16 ridcully Exp $"
 
 __copyright__ = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -126,7 +126,7 @@ class RaceList(StopableThread): # {{{
 	def removeRace(self,server_id,client_id):
 		self._races_sem.acquire()
 		try:
-			self._removeRace(self, server_id, client_id)
+			self._removeRace(server_id, client_id)
 		finally:
 			self._races_sem.release()
 	
