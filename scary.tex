@@ -1,0 +1,158 @@
+\documentclass[a4paper,10pt]{article}
+
+\newif\ifpdf
+\ifx\pdfoutput\undefined
+\pdffalse
+\else
+\pdfoutput=1
+\pdftrue
+\fi
+
+\ifpdf
+\usepackage{color}
+\definecolor{black}{rgb}{0,0,0}
+\usepackage[
+	pdftex,
+	colorlinks=true,
+	urlcolor=black,
+	filecolor=black,
+	linkcolor=black,
+	pdftitle={Description of the scary protocol},
+	pdfauthor={Christoph Frick},
+	pagebackref,
+	pdfpagemode=UseOutlines,
+	bookmarksopen=true]{hyperref}
+\pdfcompresslevel=3
+\fi
+
+\newcommand{\scary}{{\it scary}}
+\newcommand{\rls}{{\it Race List Server}}
+\newcommand{\rlc}{{\it Race List Client}}
+\newcommand{\gplop}{{\it GPL Online Paddock}}
+\newcommand{\gplopdev}{{\it GPL Online Paddock Development Group}}
+
+\newcommand{\scaryport}{27233}
+
+
+\begin{document}
+
+\title{Description of the \scary\ protocol}
+\author{Phil Flack, Christoph Frick}
+
+\maketitle
+
+\vspace{2in}
+
+\abstract
+
+The \scary protocol is used between any \rlc\ and any \rls\ as middleware for
+sending requests to the server adding, updating, querying and deleting
+informations. This document describes the protocol itself and the commands
+used over it.\\
+
+The may only \scary\ protocol be used by applications, that are allowed to use
+it. This valid both for \rlc's and \rls's. The use without the written
+permission of the \gplopdev is strictly forbidden.\\
+
+(c) Copyright 2002-2003 Phil Flack
+
+(c) Copyright 2002-2003 Christoph Frick
+
+(c) Copyright 2002-2003 \gplopdev
+
+All rights reserved
+
+\newpage
+
+
+\section{Protocol}
+
+The protocol itself using TCP/IP for connections between the \rlc\ (client) and
+the \rls\ (server). The client connects to the server on the default port
+(\scaryport). The client send the {\it request} to the server. The server then
+forges a {\it reply} to the request and sends it back to the client. The
+server then ends the connections. Only one request/reply per connection is
+sent.\\
+
+The data representing the request or the reply are wrapped in the following
+fashion:\\
+
+{\tt IIIICSSSS}\\
+
+\begin{description}
+
+\item {\tt IIII}\\
+This is the ident string for this protocol. The ident are the chars: {\tt w196} \\
+
+\item {\tt C}\\
+This flags defines whether the data are gnuzip compressed data or clear text.
+For compressed data a {\tt C} is used - and for clear text a {\tt T}
+
+\item {\tt SSSS}\\
+This is the size of the request, the other side has to expect to read then.
+The number is an {\it unsigned long int} in {\it network byte order}.  The
+size of the data transmitted is always the real size. If using compressed
+transmission of the data, the size is the length of the data {\bf after} the
+compression.\\
+
+\end{description}
+
+After the interpretation of the header, the given amount of bytes is read from
+the socket. The data are encoded in ISO-8859-1.\\
+
+To allow a common way to seprate the different fields in the data the
+following scheme is used to establish a table like handling of the data. The
+char {\tt $\backslash$002} is used to separate {\bf lines}. The char {\tt
+$\backslash$001} is used to separate {\bf cells/columns}.\\
+
+No string informations of the programming language, which is used for the
+implementation, are sent to the other side (e.g. $\backslash$000 chars in
+C).\\
+
+Within the data the command is always the the first cell. After the command
+all the parameters to the command are the following cells in this line. The
+parameters are in a fixed order. Also there are serverside checks for each
+parameter.\\
+
+The reply of the server contains in the first line the status of the reply.
+The first line contains two cells. The first is a number, that stands for a
+group of errors. The second cell contains an message, that gives an accurate
+description for the number. The following numers are used:\\
+
+\begin{description}
+
+\item 200 \\
+The request is fine - expect the data -- if there is some additional reply --
+to be found in the following rows. The reply depends on the command. The
+replies are described in the next section.
+
+\item 400 \\
+There is an error with the request. See the description for details. Most
+common are errors with the amount or the type of the submitet parameters.
+
+\item 401 \\
+The execution of this command needs a valid client id. Either the user is not
+logged in or the user has been dropped due to inactivity for a longer period.
+
+\item 404 \\
+The resource used in the request is not (longer) known. This is most common,
+when sending server ids and the server is already dropped from the list due to
+longer inactivity.
+
+\item 500 \\
+There is an internal server error. This should not happen, so it would be good
+to have here a usefull description about, what command resulted in this error
+and if possible how to reproduce this error. Inform the developer of the
+server about this issue or the administrator of the server and try to provide
+him with as many informations as possible.
+
+\item 501 \\
+The command is not yet implemented. If your client application depends on this
+command, get in contact with the developer or the administrator of the server.
+
+\end{description}
+
+% this part is generated from the server
+\include{commanddoku}
+
+\end{document}
