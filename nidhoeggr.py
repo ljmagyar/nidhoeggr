@@ -1,6 +1,6 @@
 #!/usr/bin/env python2.2
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.2 2003/05/04 12:46:54 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.3 2003/05/25 15:12:02 ridcully Exp $"
 
 copyright = """
 Copyright 2003 Christoph Frick <rid@gmx.net>
@@ -153,7 +153,7 @@ class RaceList(threading.Thread): # {{{
 				self._users[user.client_id] = user
 				self._users_by_uniqid[user.client_uniqid] = user
 			else:
-				raise RaceListProtocolException("user already registered")
+				raise RaceListProtocolException(400, "user already registered")
 		finally:
 			self._users_rwlock.release_write()
 
@@ -163,7 +163,7 @@ class RaceList(threading.Thread): # {{{
 		self._users_rwlock.acquire_read()
 		try:
 			if not self._users.has_key(client_id):
-				raise RaceListProtocolException("user unknown/not logged in")
+				raise RaceListProtocolException(401, "user unknown/not logged in")
 			ret = self._users[client_id]
 			ret.setActive()
 		finally:
@@ -185,7 +185,7 @@ class RaceList(threading.Thread): # {{{
 			if not self._races.has_key(race.server_id):
 				self._races[race.server_id] = race
 			else:
-				raise RaceListProtocolException("race already registered")
+				raise RaceListProtocolException(400, "race already registered")
 			self._buildRaceListAsReply()
 		finally:
 			self._races_rwlock.release_write()
@@ -198,7 +198,7 @@ class RaceList(threading.Thread): # {{{
 			if self._races.has_key(server_id):
 				del self._races[server_id]
 			else:
-				raise RaceListProtocolException("unknown server_id")
+				raise RaceListProtocolException(404, "unknown server_id")
 			self._buildRaceListAsReply()
 		finally:
 			self._races_rwlock.release_write()
@@ -211,7 +211,7 @@ class RaceList(threading.Thread): # {{{
 			if self._races.has_key(server_id):
 				self._races[server_id].addDriver(driver)
 			else:
-				raise RaceListProtocolException("unknown server_id")
+				raise RaceListProtocolException(404, "unknown server_id")
 			for race in self._races.values():
 				race.removeDriver(driver.client_id)
 			self._buildRaceListAsReply()
@@ -226,7 +226,7 @@ class RaceList(threading.Thread): # {{{
 			if self._races.has_key(server_id):
 				self._races[server_id].removeDriver(client_id)
 			else:
-				raise RaceListProtocolException("unknown server_id")
+				raise RaceListProtocolException(404, "unknown server_id")
 			self._buildRaceListAsReply()
 		finally:
 			self._races_rwlock.release_write()
@@ -263,7 +263,7 @@ class RaceList(threading.Thread): # {{{
 					del self._users[user]
 
 			for race in self._races.keys():
-				if self._races[race].checkTimeout():
+				if self._races[race].checkTimeout() and self._races[race].ip != "68.46.13.18": # FIXME: this is a hack for guru to have one race to test
 					if __debug__:
 						log(Log.DEBUG, "removing race %s" % race )
 					self.removeRace(self._races[race].server_id)
@@ -498,7 +498,9 @@ class Driver: # {{{
 class RaceListProtocolException(Exception): # {{{
 	"""
 	"""
-	pass
+	def __init__(id,description):
+		self.id = id
+		self.description = description
 
 # }}}
 
@@ -526,7 +528,7 @@ class RaceListRequestHandler: # {{{
 		"""
 		"""
 		if len(self._keys) != len(values):
-			raise RaceListProtocolException("param amount mismatch (expecting: %s)"%self._keys)
+			raise RaceListProtocolException(400,"param amount mismatch (expecting: %s)"%self._keys)
 		params = {'client_address':client_address}
 		for i in range(len(self._keys)):
 			value = values[i]
@@ -534,7 +536,7 @@ class RaceListRequestHandler: # {{{
 			check = self._checks[i]
 			checkresult = check(value)
 			if checkresult != None:
-				raise RaceListProtocolException("Error on %s: %s" % (key,checkresult))
+				raise RaceListProtocolException(400,"Error on %s: %s" % (key,checkresult))
 			params[key] = value
 
 		return self._handleRequest(client_address,params)
@@ -639,9 +641,9 @@ class RaceListRequestHandlerLogin(RaceListRequestHandler): # {{{
 		"""
 		if params["protocol_version"]!=self.PROTOCOL_VERSION:
 			if __debug__:
-				raise RaceListProtocolException("wrong protcol version - expected '%s'"%self.PROTOCOL_VERSION)
+				raise RaceListProtocolException(400, "wrong protcol version - expected '%s'"%self.PROTOCOL_VERSION)
 			else:
-				raise RaceListProtocolException("wrong protcol version")
+				raise RaceListProtocolException(400, "wrong protcol version")
 
 		user = self._racelist.getUserByUniqId(params["client_uniqid"])
 		if user is None:
@@ -791,7 +793,7 @@ class RaceListRequestHandlerReport(RaceListRequestHandler): # {{{
 		"""
 		"""
 		# TODO
-		raise RaceListProtocolException("not yet implemented")
+		raise RaceListProtocolException(501, "not yet implemented")
 
 # }}}
 
@@ -822,7 +824,7 @@ class RaceListRequestHandlerHelp(RaceListRequestHandler): # {{{
 		"""
 		"""
 		# TODO
-		raise RaceListProtocolException("not yet implemented")
+		raise RaceListProtocolException(501, "not yet implemented")
 
 # }}}
 
@@ -852,7 +854,7 @@ class RaceListServer(SocketServer.ThreadingTCPServer): # {{{
 		self._addRequestHandler(RaceListRequestHandlerCopyright(self._racelist))
 		self._addRequestHandler(RaceListRequestHandlerHelp(self._racelist))
 
-		# special code to help development
+		# special code to help development {{{
 		if __debug__:
 			# add some dummy races
 			user = User("anuniqid","127.0.0.1")
@@ -863,24 +865,140 @@ class RaceListServer(SocketServer.ThreadingTCPServer): # {{{
 					string.join([
 						"host",
 						user.client_id, 
-						"80.128.87.34", 
+						"68.46.13.18",
 						"32766", 
-						"name", 
-						"info1", 
+						"john king special", 
+						"John Kings Server for 65 and 55 races", 
 						"info2", 
 						"comment", 
 						"1",
-						"0", 
+						"1", 
 						"1", 
 						"0",
 						"1111111",
 						"111",
 						"0",
-						"gpl67",
+						"gpl1965",
+						"0", 
+						"3,84,3,84",
+						"10", 
+						"watglen", 
+						"1", 
+						"30"
+					],'\001')
+				)
+			)
+			log(Log.DEBUG, 
+				self.handleRequest(
+					('127.0.0.1',1024),
+					string.join([
+						"host",
+						user.client_id, 
+						"68.46.13.18",
+						"32766", 
+						"john king special", 
+						"John Kings Server for 65 and 55 races", 
+						"info2", 
+						"comment", 
+						"1",
+						"1", 
+						"1", 
+						"0",
+						"1111111",
+						"111",
+						"0",
+						"gpl1955",
+						"0", 
+						"3,84,3,84",
+						"10", 
+						"watglen", 
+						"1", 
+						"30"
+					],'\001')
+				)
+			)
+			log(Log.DEBUG, 
+				self.handleRequest(
+					('127.0.0.1',1024),
+					string.join([
+						"host",
+						user.client_id, 
+						"68.46.13.18",
+						"32766", 
+						"john king special", 
+						"John Kings Server for 65 and 55 races", 
+						"info2", 
+						"comment", 
+						"1",
+						"1", 
+						"1", 
+						"0",
+						"1111111",
+						"111",
+						"0",
+						"gpl1955",
+						"0", 
+						"3,84,3,84",
+						"10", 
+						"noris", 
+						"1", 
+						"30"
+					],'\001')
+				)
+			)
+			log(Log.DEBUG, 
+				self.handleRequest(
+					('127.0.0.1',1024),
+					string.join([
+						"host",
+						user.client_id, 
+						"68.46.13.18",
+						"32766", 
+						"john king special", 
+						"John Kings Server for 65 and 55 races", 
+						"info2", 
+						"comment", 
+						"1",
+						"1", 
+						"1", 
+						"0",
+						"1111111",
+						"111",
+						"0",
+						"gpl1965",
 						"0", 
 						"3,84,3,84",
 						"10", 
 						"solitude", 
+						"1", 
+						"30"
+					],'\001')
+				)
+			)
+			log(Log.DEBUG, 
+				self.handleRequest(
+					('127.0.0.1',1024),
+					string.join([
+						"host",
+						user.client_id, 
+						"68.46.13.18",
+						"32766", 
+						"john king special", 
+						"John Kings Server for 65 and 55 races", 
+						"info2", 
+						"comment", 
+						"1",
+						"1", 
+						"1", 
+						"0",
+						"1111111",
+						"111",
+						"0",
+						"gpl1965",
+						"0", 
+						"3,84,3,84",
+						"10", 
+						"noris", 
 						"1", 
 						"30"
 					],'\001')
@@ -895,6 +1013,7 @@ class RaceListServer(SocketServer.ThreadingTCPServer): # {{{
 					],'\001')
 				)
 			)
+		# }}}
 
 	def _addRequestHandler(self,handler):
 		"""
@@ -906,14 +1025,14 @@ class RaceListServer(SocketServer.ThreadingTCPServer): # {{{
 		"""
 		requestdata = data.split("\001")
 		if len(requestdata)==0:
-			raise RaceListProtocolException("empty request")
+			raise RaceListProtocolException(400, "empty request")
 		
 		requestname = requestdata[0]
 		if __debug__:
 			log(Log.DEBUG,"request: "+requestdata.__str__())
 
 		if not self._requesthandlers.has_key(requestname):
-			raise RaceListProtocolException("unknown command")
+			raise RaceListProtocolException(400, "unknown command")
 		return self._requesthandlers[requestname].handleRequest(client_address,requestdata[1:])
 
 # }}}
@@ -938,12 +1057,12 @@ class RaceListServerRequestHandler(SocketServer.StreamRequestHandler): # {{{
 		try:
 			data = self.readMessage()
 			result = self.server.handleRequest(self.client_address,data)
-			self.sendResult("ok",result)
+			self.sendResult([200,'OK'],result)
 		except RaceListProtocolException, e:
 			log(Log.ERROR,e)
 			self.sendError(e)
 		except Exception, e:
-			self.sendError(RaceListProtocolException("internal server error"))
+			self.sendError(RaceListProtocolException(500, "internal server error"))
 			raise
 
 	def readMessage(self):
@@ -951,20 +1070,20 @@ class RaceListServerRequestHandler(SocketServer.StreamRequestHandler): # {{{
 		"""
 		clientident = self.rfile.read(4)
 		if clientident!=self.CLIENTINDENT:
-			raise RaceListProtocolException("unknown client ident")
+			raise RaceListProtocolException(400, "unknown client ident")
 
 		mode = struct.unpack(">c", self.rfile.read(1))[0]
 		if mode!=self.MODE_CLEARTEXT and mode!=self.MODE_COMPRESS:
-			raise RaceListProtocolException("unhandled mode %s" % (mode))
+			raise RaceListProtocolException(400, "unhandled mode %s" % (mode))
 		
 		datasize = struct.unpack(">L", self.rfile.read(4))[0]
 
 		if datasize>self.MAXSIZE:
-			raise RaceListProtocolException("unreasonable large size=%d" %(mode))
+			raise RaceListProtocolException(400, "unreasonable large size=%d" %(mode))
 
 		data = self.rfile.read(datasize)
 		if len(data)!=datasize:
-			raise RaceListProtocolException("client canceled connection before expected amount of data could be read")
+			raise RaceListProtocolException(400, "client canceled connection before expected amount of data could be read")
 		if mode=="c":
 			data = zlib.decompress(data)
 
@@ -983,10 +1102,10 @@ class RaceListServerRequestHandler(SocketServer.StreamRequestHandler): # {{{
 		self.wfile.write(struct.pack(">4scL", self.CLIENTINDENT, mode, len(data))+data)
 
 	def sendError(self,exception):
-		self.sendResult("err",((exception.__str__(),),))
+		self.sendResult([exception.id,exception.description],[])
 
 	def sendResult(self,status,reply):
-		result = status
+		result = "%d%s%s" % (status[0],self.CELLSEPARATOR,status[1])
 		for list in reply:
 			result += "%s%s" % (self.ROWSEPARATOR,string.join(list,self.CELLSEPARATOR))
 		self.writeMessage(result)
