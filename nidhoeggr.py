@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.58 2004/05/02 09:22:12 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.59 2004/05/02 13:22:20 ridcully Exp $"
 
 __copyright__ = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -555,6 +555,7 @@ class RLServerList(StopableThread): # {{{
 		for row in result:
 			# add the servers from the list, if they are new
 			if not self.hasRLServer(row[1]):
+				rls_register = request.RLSRegister()
 				racelistserver.handleDistributedRequest(rls_register.generateDistributableRequest({
 					'protocol_version':row[0], 
 					'rls_id':row[1], 
@@ -898,9 +899,9 @@ class RaceListServer(SocketServer.ThreadingTCPServer, StopableThread): # {{{
 				client = Client(initserver_name,initserver_port)
 				rls_register = request.RLSRegister()
 				result = client.doRequest(rls_register.generateCompleteRequest(self._serverlist._rls.params))
-				log(Log.INFO, "success - registering to the server list from the init server")
-				self.serverlist.registerServersFromRLRegisterResult(self, self, result)
+				self._serverlist.registerServersFromRLRegisterResult(self, result)
 				success = 1
+				log(Log.INFO, "success - registering to the server list from the init server")
 				break
 			except Exception, e:
 				log(Log.WARNING, "Error on registering to init server: %s" % e)
