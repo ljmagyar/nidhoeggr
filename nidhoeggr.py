@@ -1,6 +1,6 @@
 #!/usr/bin/env python2.2
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.12 2003/07/31 07:23:57 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.13 2003/08/10 13:16:45 ridcully Exp $"
 
 copyright = """
 Copyright 2003 Christoph Frick <rid@zefix.tv>
@@ -799,6 +799,7 @@ class RaceListRequestHandlerReqFull(RaceListRequestHandler): # {{{
 		modindent, 
 		maxlatency, 
 		bandwidth, 
+		players,
 		maxplayers, 
 		trackdir, 
 		racetype, 
