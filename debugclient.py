@@ -96,8 +96,8 @@ class DebugClient:
 						str(randint(0,28)),
 						str(randint(0,15))
 					]])
-			for i in range(randint(1,10)):
-				c = nidhoeggr.Client('Dummy %f' % (random()),'localhost')	
+ 			for i in range(randint(1,10)):
+				c = nidhoeggr.Client('Dummy %f' % (random()),self.servername,self.serverport)	
 				j = nidhoeggr.RequestSender(c,[[
 						'join',
 						r.result[0][0],
