@@ -1,4 +1,4 @@
-PROTOCOL_VERSION="scary v0.1"
+PROTOCOL_VERSION="scary v1.0"
 
 import nidhoeggr
 import paramchecks
