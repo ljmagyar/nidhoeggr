@@ -4,10 +4,10 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.33.2.2 2004/02/29 16:01:07 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.33.2.3 2004/03/08 20:20:20 ridcully Exp $"
 
 DEFAULT_RACELISTPORT=30197
-DEFAULT_BROADCASTPORT=6970
+DEFAULT_BROADCASTPORT=30199
 
 copyright = """
 Copyright 2003,2004 Christoph Frick <rid@zefix.tv>
