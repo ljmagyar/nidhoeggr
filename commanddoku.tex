@@ -1,5 +1,20 @@
 \section{Commands}
 
+\subsection{login}
+
+\begin{description}
+\item {\it Description:}\\
+Login of the client/user onto the server. This command must be called before all others. This command will assure, that client and server speak the same version of the protocol.
+\item {\it Parmameters:}
+\begin{itemize}
+\item protocol\_version
+\item client\_version
+\item client\_uniqid
+\end{itemize}
+\item {\it Result:}\\
+The reply contains 4 cells: protocol version, server version, client id for further requests, ip the connection came from
+\end{description}
+
 \subsection{req\_full}
 
 \begin{description}
@@ -101,21 +116,6 @@ Starts hosting of a race. The given informations are used to describe the race a
 \end{itemize}
 \item {\it Result:}\\
 A unique id for the server, that will be used to update the hosting and race informations and also by the clients to join/leave the race.
-\end{description}
-
-\subsection{login}
-
-\begin{description}
-\item {\it Description:}\\
-Login of the client/user onto the server. This command must be called before all others. This command will assure, that client and server speak the same version of the protocol.
-\item {\it Parmameters:}
-\begin{itemize}
-\item protocol\_version
-\item client\_version
-\item client\_uniqid
-\end{itemize}
-\item {\it Result:}\\
-The reply contains 4 cells: protocol version, server version, client id for further requests, ip the connection came from
 \end{description}
 
 \subsection{join}

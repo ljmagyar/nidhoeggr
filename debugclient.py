@@ -24,7 +24,7 @@ def getLastName():
 			'Flack'
 	])
 
-c = nidhoeggr.Client('Dummy %f' % (random()),'localhost')
+c = nidhoeggr.Client('Dummy %f' % (random()),'ridcully.mine.nu')
 r = nidhoeggr.RequestSender(c, [[
 			"host", 
 			c.client_id,
@@ -59,9 +59,8 @@ r = nidhoeggr.RequestSender(c, [[
 			str(randint(0,100)),
 			str(randint(0,100))
 		]])
-print r.result[0][0]
 for i in range(randint(1,10)):
-	c = nidhoeggr.Client('Dummy %f' % (random()),'localhost')	
+	c = nidhoeggr.Client('Dummy %f' % (random()),'ridcully.mine.nu')	
 	j = nidhoeggr.RequestSender(c,[[
 			'join',
 			r.result[0][0],

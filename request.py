@@ -250,7 +250,7 @@ class RequestHandler: # {{{
 		"""
 		if len(self.paramconfig) != len(values):
 			raise nidhoeggr.RaceListProtocolException(400,"param amount mismatch")
-		params = {'client_address':client_address}
+		params = {'ip':client_address[0]}
 		for i in range(len(self.paramconfig)):
 			value = values[i]
 			param = self.paramconfig[i]
@@ -259,9 +259,9 @@ class RequestHandler: # {{{
 				raise nidhoeggr.RaceListProtocolException(400,"Error on %s: %s" % (param.paramname,checkresult))
 			params[param.paramname] = value
 
-		return self._handleRequest(client_address,params)
+		return self._handleRequest(params)
 
-	def _handleRequest(self,client_address,data):
+	def _handleRequest(self,data):
 		"""
 		"""
 		raise NotImplementedError("RequestHandler._handleRequest is not implemented")
@@ -275,7 +275,7 @@ class RequestHandlerLogin(RequestHandler, RequestLogin): # {{{
 		RequestLogin.__init__(self)
 		RequestHandler.__init__(self, racelistserver)
 
-	def _handleRequest(self,client_address,params):
+	def _handleRequest(self,params):
 		if params["protocol_version"]!=PROTOCOL_VERSION:
 			if __debug__:
 				raise nidhoeggr.RaceListProtocolException(400, "wrong protcol version - expected '%s'"%PROTOCOL_VERSION)
@@ -284,7 +284,7 @@ class RequestHandlerLogin(RequestHandler, RequestLogin): # {{{
 
 		user = self._racelist.getUserByUniqId(params["client_uniqid"])
 		if user is None:
-			user = nidhoeggr.User(params["client_uniqid"],client_address[0])
+			user = nidhoeggr.User(params["client_uniqid"],params['ip'])
 			self._racelist.addUser(user)
 
 		return [[PROTOCOL_VERSION,nidhoeggr.SERVER_VERSION,user.client_id,user.outsideip]]
@@ -298,7 +298,7 @@ class RequestHandlerHost(RequestHandler, RequestHost): # {{{
 		RequestHost.__init__(self)
 		RequestHandler.__init__(self, racelistserver)
 
-	def _handleRequest(self,client_address,params):
+	def _handleRequest(self,params):
 		self._racelist.getUser(params["client_id"])
 		race = nidhoeggr.Race(params)
 		self._racelist.addRace(race)
@@ -318,7 +318,7 @@ class RequestHandlerReqFull(RequestHandler, RequestReqFull): # {{{
 		RequestReqFull.__init__(self)
 		RequestHandler.__init__(self, racelistserver)
 
-	def _handleRequest(self,client_address,params):
+	def _handleRequest(self,params):
 		user = self._racelist.getUser(params["client_id"])
 		user.setActive()
 		return self._racelist.getRaceListAsReply()
@@ -332,7 +332,7 @@ class RequestHandlerJoin(RequestHandler, RequestJoin): # {{{
 		RequestJoin.__init__(self)
 		RequestHandler.__init__(self, racelistserver)
 
-	def _handleRequest(self,client_address,params):
+	def _handleRequest(self,params):
 		user = self._racelist.getUser(params["client_id"])
 		driver = nidhoeggr.Driver(user,params)
 		self._racelist.driverJoinRace(params["server_id"],driver)
@@ -347,7 +347,7 @@ class RequestHandlerLeave(RequestHandler, RequestLeave): # {{{
 		RequestLeave.__init__(self)
 		RequestHandler.__init__(self, racelistserver)
 
-	def _handleRequest(self,client_address,params):
+	def _handleRequest(self,params):
 		self._racelist.driverLeaveRace(params["server_id"], params["client_id"])
 		return [[]]
 
@@ -360,7 +360,7 @@ class RequestHandlerEndHost(RequestHandler, RequestEndHost): # {{{
 		RequestEndHost.__init__(self)
 		RequestHandler.__init__(self, racelistserver)
 
-	def _handleRequest(self,client_address,params):
+	def _handleRequest(self,params):
 		self._racelist.removeRace(params["server_id"], params["client_id"])
 		return [[]]
 
@@ -373,7 +373,7 @@ class RequestHandlerReport(RequestHandler, RequestReport): # {{{
 		RequestReport.__init__(self)
 		RequestHandler.__init__(self, racelistserver)
 
-	def _handleRequest(self,client_address,params):
+	def _handleRequest(self,params):
 		# TODO
 		raise nidhoeggr.RaceListProtocolException(501, "not yet implemented")
 
@@ -386,7 +386,7 @@ class RequestHandlerCopyright(RequestHandler, RequestCopyright): # {{{
 		RequestCopyright.__init__(self)
 		RequestHandler.__init__(self, racelistserver)
 
-	def _handleRequest(self,client_address,params):
+	def _handleRequest(self,params):
 		return [[copyright]]
 
 # }}}
@@ -398,7 +398,7 @@ class RequestHandlerHelp(RequestHandler, RequestHelp): # {{{
 		RequestHelp.__init__(self)
 		RequestHandler.__init__(self, racelistserver)
 
-	def _handleRequest(self,client_address,params):
+	def _handleRequest(self,params):
 		ret = []
 		rhs = self._racelistserver._requesthandlers.values()
 		rhs.sort()
