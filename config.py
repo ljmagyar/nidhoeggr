@@ -31,6 +31,7 @@ class Config:
 		self.__registerConfigVariable(ConfigVariable('initserver_port',           DEFAULT_RACELISTPORT,  paramchecks.check_suint,   int))
 		self.__registerConfigVariable(ConfigVariable('user_timeout',              3600,                  paramchecks.check_suint,   int))
 		self.__registerConfigVariable(ConfigVariable('race_timeout',              90,                    paramchecks.check_suint,   int))
+		self.__registerConfigVariable(ConfigVariable('race_timeout_hard',         900,                   paramchecks.check_suint,   int))
 		self.__registerConfigVariable(ConfigVariable('server_timeout',            90,                    paramchecks.check_suint,   int))
 		self.__registerConfigVariable(ConfigVariable('server_update',             30,                    paramchecks.check_suint,   int))
 		self.__registerConfigVariable(ConfigVariable('racelist_clean_interval',   60,                    paramchecks.check_suint,   int))

@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.63 2004/05/12 12:18:01 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.64 2004/05/19 21:25:34 ridcully Exp $"
 
 __copyright__ = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -154,9 +154,10 @@ class RaceList(StopableThread): # {{{
 	def _buildRaceListAsReply(self):
 		self.reqfull = []
 		for race in self._races.values():
-			self.reqfull.append(race.getRaceAsReply())
-			for driver in race.drivers.values():
-				self.reqfull.append(driver.getDriverAsReply())
+			if race.params['visible']:
+				self.reqfull.append(race.getRaceAsReply())
+				for driver in race.drivers.values():
+					self.reqfull.append(driver.getDriverAsReply())
 
 	def getRaceListAsReply(self):
 		self._races_rwlock.acquire_read()
@@ -172,6 +173,14 @@ class RaceList(StopableThread): # {{{
 			if self._racesbroadcasts.has_key(broadcastid):
 				self._racesbroadcasts[broadcastid].updateRaceViaBroadcast(params['players'], params['maxplayers'], params['racetype'], params['trackdir'], params['sessiontype'], params['sessionleft'])
 				self._buildRaceListAsReply()
+				# set the starting user active so it gets
+				# distributed for sure and assures, that a
+				# race can be started on the other racelists
+				self._users_rwlock.acquire_write()
+				try:
+					self._users[self._racesbroadcasts[broadcastid].params['client_id']].setActive()
+				finally:
+					self._users_rwlock.release_write()
 		finally:
 			self._races_rwlock.release_write()
 
@@ -196,11 +205,16 @@ class RaceList(StopableThread): # {{{
 
 		for server_id in self._races.keys():
 			racecount = racecount + 1
-			if self._races[server_id].checkTimeout(currenttime):
+			# hard timeout deletes the race
+			if self._races[server_id].checkTimeout(currenttime,config.race_timeout_hard):
 				if __debug__:
 					log(Log.DEBUG, "removing race %s" % server_id )
 				racedelcount = racedelcount + 1
 				self.removeRace(server_id, self._races[server_id].params['client_id'])
+			# soft timeout removes it from display
+			if self._races[server_id].params['visible'] and self._races[server_id].checkTimeout(currenttime):
+				self._races[server_id].params['visible'] = 0
+				self._buildRaceListAsReply()
 
 		log(log.INFO, "cleanup: %d/%d users; %d/%d races" % (userdelcount,usercount,racedelcount,racecount))
 
@@ -307,6 +321,8 @@ class Race(IdleWatcher): # {{{
 		self._initstateless()
 
 	def _initstateless(self):
+		self.setActive()
+		self.params['visible'] = 1
 		self._rwlock = ReadWriteLock()
 
 	def hasDriver(self, client_id):
@@ -944,7 +960,7 @@ class RaceListServerRequestHandler(SocketServer.StreamRequestHandler, Middleware
 			# something went tits up with the connection - we cant
 			# help here just log and bailout
 			log(Log.ERROR, "IO error on handling request: %s" % e)
-		except scoket.error, e:
+		except socket.error, e:
 			# something went tits up with the connection - we cant
 			# help here just log and bailout
 			log(Log.ERROR, "socket error on handling request: %s" % e)
