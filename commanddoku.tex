@@ -29,6 +29,7 @@ The complete current racelist. Each line holds either a race or following the dr
 			
 		R, 
 		server\_id, 
+		realip, 
 		ip, 
 		joinport, 
 		name, 
@@ -50,7 +51,11 @@ The complete current racelist. Each line holds either a race or following the dr
 		racetype, 
 		praclength, 
 		sessionleft, 
-		sessiontype
+		sessiontype,
+		aiplayers,
+		numraces,
+		repeatcount,
+		flags
 
 
 		The drivers contain this data:
@@ -98,6 +103,10 @@ Starts hosting of a race. The given informations are used to describe the race a
 \item trackdir:string
 \item racetype:suint
 \item praclength:suint
+\item aiplayers:suint
+\item numraces:suint
+\item repeatcount:suint
+\item flags:string
 \end{itemize}
 \item {\it Result:}\\
 A unique id for the server, that will be used to update the hosting and race informations and also by the clients to join/leave the race.

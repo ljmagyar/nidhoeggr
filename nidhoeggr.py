@@ -1,6 +1,6 @@
 #!/usr/bin/env python2.2
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.10 2003/06/23 19:30:26 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.11 2003/07/30 19:45:46 ridcully Exp $"
 
 copyright = """
 Copyright 2003 Christoph Frick <rid@gmx.net>
@@ -122,7 +122,36 @@ class IdleWatcher: # {{{
 
 # IdleWatcher }}}
 
-class RaceList(threading.Thread): # {{{
+class StopableThread(threading.Thread): # {{{
+	"""
+	"""
+	def __init__(self,sleep=0):
+		"""
+		"""
+		threading.Thread.__init__(self)
+		self._stopevent = threading.Event()
+		self._sleep = sleep
+
+	def join(self,timeout=None):
+		"""
+		initiate a graceful shutdown of the cleaning thread
+		"""
+		self._join()
+		self._stopevent.set()
+		threading.Thread.join(self,timeout)
+
+	def run(self):
+		while not self._stopevent.isSet():
+			self._run()
+			if self._sleep>0:
+				self._stopevent.wait(self._sleep)
+
+	def _join(self):pass
+	def _run(self):pass
+
+# }}}
+
+class RaceList(StopableThread): # {{{
 	"""
 	"""
 
@@ -131,13 +160,12 @@ class RaceList(threading.Thread): # {{{
 	def __init__(self):
 		"""
 		"""
-		threading.Thread.__init__(self)
-
-		self._stopevent = threading.Event()
+		StopableThread.__init__(self,self.CLEANINTERVAL)
 
 		self._users = {}
 		self._usersuniqids = {}
 		self._races = {}
+		self._racesbroadcasts = {}
 		self._reqfull = []
 
 		self._users_rwlock = ReadWriteLock()
@@ -196,6 +224,7 @@ class RaceList(threading.Thread): # {{{
 		try:
 			if not self._races.has_key(race.server_id):
 				self._races[race.server_id] = race
+				self._racesbroadcasts[race.broadcastid] = race
 			else:
 				raise RaceListProtocolException(400, "race already registered")
 			self._buildRaceListAsReply()
@@ -210,6 +239,7 @@ class RaceList(threading.Thread): # {{{
 			if self._races.has_key(server_id):
 				if self._races[server_id].client_id!=client_id:
 					raise RaceListProtocolException(401, "authorization required")
+				del self._racesbroadcasts[self._races[server_id].broadcastid]
 				del self._races[server_id]
 			else:
 				raise RaceListProtocolException(404, "unknown server_id")
@@ -265,34 +295,34 @@ class RaceList(threading.Thread): # {{{
 			self._races_rwlock.release_read()
 		return ret
 
-	def run(self):
+	def updateRaceViaBroadcast(self, broadcastid, players, maxplayers, trackdir, sessiontype, sessionleft):
+		"""
+		"""
+		self._races_rwlock.acquire_write()
+		try:
+			if self._racesbroadcasts.has_key(broadcastid):
+				self._racesbroadcasts[broadcastid].updateRaceViaBroadcast(players, maxplayers, trackdir, sessiontype, sessionleft)
+				self._buildRaceListAsReply()
+		finally:
+			self._races_rwlock.release_write()
+
+	def _run(self):
 		"""
 		lurks behind the scenes and cleans the._races and the._users
 		"""
-		while not self._stopevent.isSet():
-			for client_id in self._users.keys():
-				if self._users[client_id].checkTimeout():
-					if __debug__:
-						log(Log.DEBUG, "removing user %s" % client_id )
-					self.removeUser(client_id)
+		for client_id in self._users.keys():
+			if self._users[client_id].checkTimeout():
+				if __debug__:
+					log(Log.DEBUG, "removing user %s" % client_id )
+				self.removeUser(client_id)
 
-			for server_id in self._races.keys():
-				if self._races[server_id].checkTimeout() and self._races[server_id].ip != "68.46.13.18": # FIXME: this is a hack for guru to have one race to test
-					if __debug__:
-						log(Log.DEBUG, "removing race %s" % server_id )
-					self.removeRace(server_id, self._races[server_id].client_id)
+		for server_id in self._races.keys():
+			if self._races[server_id].checkTimeout():
+				if __debug__:
+					log(Log.DEBUG, "removing race %s" % server_id )
+				self.removeRace(server_id, self._races[server_id].client_id)
 
-			self._stopevent.wait(RaceList.CLEANINTERVAL)
-
-	def join(self,timeout=None):
-		"""
-		initiate a graceful shutdown of the cleaning thread
-		"""
-		self._store()
-		self._stopevent.set()
-		threading.Thread.join(self,timeout)
-
-	def _store(self,filename='racelist.cpickle'):
+	def _join(self,filename='racelist.cpickle'):
 		"""
 		stores the current racelist in the given file
 		"""
@@ -332,23 +362,29 @@ class Race(IdleWatcher): # {{{
 		"""
 		"""
 		self.params = params
+		self.params["realip"] = self.client_address[0]
 		self.params["server_id"] = sha.new("%s%s%s%s%s" % (self.client_id,self.ip, self.joinport, time.time(), random.randint(0,1000000))).hexdigest()
-		self.params["sessionleft"] = self.praclength
+		self.params["broadcastid"] = "%s:%s" % (self.realip, self.joinport)
+
 		self.params["sessiontype"] = 0
+		self.params["sessionleft"] = self.praclength
+		self.params["players"]     = 0
 		
 		self.drivers = {}
 
 		self._initstateless()
 
 	def _initstateless(self):
+		"""
+		"""
 		IdleWatcher.__init__(self,900.0)
 		self._rwlock = ReadWriteLock()
 
 	def addDriver(self,driver):
 		"""
 		"""
-		self.setActive()
 		self._rwlock.acquire_write()
+		self.setActive()
 		try:
 			if not self.drivers.has_key(driver.client_id):
 				self.drivers[driver.client_id] = driver
@@ -359,12 +395,26 @@ class Race(IdleWatcher): # {{{
 	def removeDriver(self,client_id):
 		"""
 		"""
-		self.setActive()
 		self._rwlock.acquire_write()
+		self.setActive()
 		try:
 			if self.drivers.has_key(client_id):
 				del self.drivers[client_id]
 			# silently ignore the request, if there is not driver with this id in the race
+		finally:
+			self._rwlock.release_write()
+			
+	def updateRaceViaBroadcast(self, players, maxplayers, trackdir, sessiontype, sessionleft):
+		"""
+		"""
+		self._rwlock.acquire_write()
+		self.setActive()
+		try:
+			self.players     = players
+			self.maxplayers  = maxplayers
+			self.trackdir    = trackdir
+			self.sessiontype = sessiontype
+			self.sessionleft = sessionleft
 		finally:
 			self._rwlock.release_write()
 
@@ -375,6 +425,7 @@ class Race(IdleWatcher): # {{{
 		ret = (
 			"R",
 			str(self.server_id),
+			str(self.realip),
 			str(self.ip),
 			str(self.joinport),
 			str(self.name),
@@ -391,12 +442,17 @@ class Race(IdleWatcher): # {{{
 			str(self.modindent),
 			str(self.maxlatency),
 			str(self.bandwidth),
+			str(self.players),
 			str(self.maxplayers),
 			str(self.trackdir),
 			str(self.racetype),
 			str(self.praclength),
+			str(self.sessiontype),
 			str(self.sessionleft),
-			str(self.sessiontype)
+			str(self.aiplayers),
+			str(self.numraces),
+			str(self.repeatcount),
+			str(self.flags)
 		)
 		self._rwlock.release_read()
 		return ret
@@ -696,7 +752,11 @@ class RaceListRequestHandlerHost(RaceListRequestHandler): # {{{
 			"maxplayers:suint",
 			"trackdir:string", 
 			"racetype:suint", 
-			"praclength:suint"
+			"praclength:suint",
+			"aiplayers:suint",
+			"numraces:suint",
+			"repeatcount:suint",
+			"flags:string"
 		])
 
 	def _handleRequest(self,client_address,params):
@@ -722,6 +782,7 @@ class RaceListRequestHandlerReqFull(RaceListRequestHandler): # {{{
 			
 		R, 
 		server_id, 
+		realip, 
 		ip, 
 		joinport, 
 		name, 
@@ -743,7 +804,11 @@ class RaceListRequestHandlerReqFull(RaceListRequestHandler): # {{{
 		racetype, 
 		praclength, 
 		sessionleft, 
-		sessiontype
+		sessiontype,
+		aiplayers,
+		numraces,
+		repeatcount,
+		flags
 
 
 		The drivers contain this data:
@@ -823,7 +888,7 @@ class RaceListRequestHandlerEndHost(RaceListRequestHandler): # {{{
 
 	def _handleRequest(self,client_address,params):
 		"""Nothing."""
-		self._racelist.removeRace(params["server_id"], params["client_address"])
+		self._racelist.removeRace(params["server_id"], params["client_id"])
 		return [[]]
 
 # }}}
@@ -892,7 +957,8 @@ class RaceListServer(SocketServer.ThreadingTCPServer): # {{{
 		SocketServer.ThreadingTCPServer.__init__(self,("",racelistport),RaceListServerRequestHandler)
 
 		self._racelist = RaceList()
-		self._racelist.start()
+
+		self._broadcastserver = RaceListBroadCastServer(self._racelist)
 
 		self._requesthandlers = {}
 		self._addRequestHandler(RaceListRequestHandlerLogin(self))
@@ -910,17 +976,16 @@ class RaceListServer(SocketServer.ThreadingTCPServer): # {{{
 			# add some dummy races
 			user = User("anuniqid","127.0.0.1")
 			self._racelist.addUser(user)
-			"""
 			log(Log.DEBUG, 
 				self.handleRequest(
-					('127.0.0.1',1024),
+					('192.168.212.82',1024),
 					string.join([
 						"host",
 						user.client_id, 
-						"68.46.13.18",
+						"192.168.212.82",
 						"32766", 
-						"john king special", 
-						"John Kings Server for 65 and 55 races", 
+						"elmister", 
+						"nidhoeggr test server", 
 						"info2", 
 						"comment", 
 						"1",
@@ -934,129 +999,16 @@ class RaceListServer(SocketServer.ThreadingTCPServer): # {{{
 						"0", 
 						"3,84,3,84",
 						"10", 
-						"watglen", 
+						"monaco", 
 						"1", 
-						"30"
-					],'\001')
-				)
-			)
-			log(Log.DEBUG, 
-				self.handleRequest(
-					('127.0.0.1',1024),
-					string.join([
-						"host",
-						user.client_id, 
-						"68.46.13.18",
-						"32766", 
-						"john king special", 
-						"John Kings Server for 65 and 55 races", 
-						"info2", 
-						"comment", 
+						"30",
+						"3",
 						"1",
-						"1", 
-						"1", 
-						"0",
-						"1111111",
-						"111",
-						"0",
-						"gpl1955",
-						"0", 
-						"3,84,3,84",
-						"10", 
-						"watglen", 
-						"1", 
-						"30"
-					],'\001')
-				)
-			)
-			log(Log.DEBUG, 
-				self.handleRequest(
-					('127.0.0.1',1024),
-					string.join([
-						"host",
-						user.client_id, 
-						"68.46.13.18",
-						"32766", 
-						"john king special", 
-						"John Kings Server for 65 and 55 races", 
-						"info2", 
-						"comment", 
 						"1",
-						"1", 
-						"1", 
-						"0",
-						"1111111",
-						"111",
-						"0",
-						"gpl1955",
-						"0", 
-						"3,84,3,84",
-						"10", 
-						"noris", 
-						"1", 
-						"30"
+						"a"
 					],'\001')
 				)
 			)
-			log(Log.DEBUG, 
-				self.handleRequest(
-					('127.0.0.1',1024),
-					string.join([
-						"host",
-						user.client_id, 
-						"68.46.13.18",
-						"32766", 
-						"john king special", 
-						"John Kings Server for 65 and 55 races", 
-						"info2", 
-						"comment", 
-						"1",
-						"1", 
-						"1", 
-						"0",
-						"1111111",
-						"111",
-						"0",
-						"gpl1965",
-						"0", 
-						"3,84,3,84",
-						"10", 
-						"solitude", 
-						"1", 
-						"30"
-					],'\001')
-				)
-			)
-			log(Log.DEBUG, 
-				self.handleRequest(
-					('127.0.0.1',1024),
-					string.join([
-						"host",
-						user.client_id, 
-						"68.46.13.18",
-						"32766", 
-						"john king special", 
-						"John Kings Server for 65 and 55 races", 
-						"info2", 
-						"comment", 
-						"1",
-						"1", 
-						"1", 
-						"0",
-						"1111111",
-						"111",
-						"0",
-						"gpl1965",
-						"0", 
-						"3,84,3,84",
-						"10", 
-						"noris", 
-						"1", 
-						"30"
-					],'\001')
-				)
-			)
-			"""
 			log(
 				Log.DEBUG, self.handleRequest(
 					('127.0.0.1',1024),
@@ -1104,11 +1056,18 @@ class RaceListServer(SocketServer.ThreadingTCPServer): # {{{
 		
 		requestname = requestdata[0]
 		if __debug__:
-			log(Log.DEBUG,"request: "+requestdata.__str__())
+			log(Log.DEBUG,"request: "+str(requestdata))
 
 		if not self._requesthandlers.has_key(requestname):
 			raise RaceListProtocolException(400, "unknown command")
 		return self._requesthandlers[requestname].handleRequest(client_address,requestdata[1:])
+
+	def startServer(self):
+		"""
+		"""
+		self._racelist.start()
+		self._broadcastserver.start()
+		self.serve_forever()
 
 # }}}
 
@@ -1196,14 +1155,63 @@ class RaceListServerRequestHandler(SocketServer.StreamRequestHandler): # {{{
 
 # }}}
 
+class RaceListBroadCastServer(SocketServer.ThreadingUDPServer, StopableThread): # {{{
+	"""
+	"""
+
+	def __init__(self,racelist,broadcastport=6970):
+		"""
+		"""
+		log(Log.INFO,"starting broadcast listen server on port %d" % (broadcastport))
+
+		StopableThread.__init__(self)
+		
+		self.racelist = racelist
+		self.allow_reuse_address = 1
+		SocketServer.ThreadingUDPServer.__init__(self,("",broadcastport),RaceListBroadCastServerRequestHandler)
+
+	def _run(self):
+		"""
+		"""
+		self.handle_request()
+# }}}
+
+class RaceListBroadCastServerRequestHandler(SocketServer.DatagramRequestHandler): # {{{
+	"""
+	"""
+
+	def handle(self):
+		"""
+		"""
+		try:
+			line = self.rfile.read(4096)
+			version, joinport, servername, trackdir, cardir, xplayers, classes, racetype, junk, hassession, sessiontype, timeinsession, passworded, maxping = line.split("\001")
+			broadcastid = "%s:%s" % (self.client_address[0],joinport)
+			players,maxplayers = xplayers.split('/')
+			if hassession=='N':
+				sessiontype = 0
+				sessionleft = 0
+			else:
+				sessionleft = timeinsession[1:]
+
+			if __debug__:
+				log(Log.DEBUG, "got ping info: broadcastid=%s players=%s maxplayers=%s trackdir=%s sessiontype=%s sessionleft=%s" % (broadcastid, players, maxplayers, trackdir, sessiontype, sessionleft))
+			self.server.racelist.updateRaceViaBroadcast(broadcastid, players, maxplayers, trackdir, sessiontype, sessionleft)
+		except Exception, e:
+			# can not much do about it
+			log(Log.DEBUG, e)
+
+# }}}
+
 class Nidhoeggr: # {{{
 	"""
 	TODO
 	- interface for Tom's secur to report racedata
-	- support for the old way of reporting current race stats - like it was
-	  done with vroc
 	- interface to BigBrother
 	- writing a client for this protocol
+	- way to handle permanent servers
+	- allow servers to have names instead of ips so dyndns entries can be used
+	- the broadcast server can not be canceled correct - find a way to send him the signals the main server gets
 	"""
 	def __init__(self):
 		"""
@@ -1216,7 +1224,7 @@ class Nidhoeggr: # {{{
 		"""
 		try:
 			log(Log.INFO,"starting racelist server")
-			self.racelistserver.serve_forever()
+			self.racelistserver.startServer()
 		except KeyboardInterrupt:
 			log(Log.INFO,"shutting down server");
 
