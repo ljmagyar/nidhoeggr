@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.32 2004/01/25 16:46:47 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.33 2004/02/06 13:16:11 ridcully Exp $"
 
 DEFAULT_RACELISTPORT=30197
 DEFAULT_BROADCASTPORT=6970
@@ -27,8 +27,7 @@ import cPickle
 import select
 import time
 import socket
-if __debug__:
-	import random
+import random
 
 import tools
 from tools import Log, log
@@ -92,7 +91,8 @@ class RaceList(tools.StopableThread): # {{{
 		self._users_rwlock.acquire_write()
 		try:
 			if self.hasUser(client_id):
-				del self._usersuniqids[self._users[client_id].params['client_uniqid']]
+				if self._usersuniqids.has_key(self._users[client_id].params['client_uniqid']):
+					del self._usersuniqids[self._users[client_id].params['client_uniqid']]
 				del self._users[client_id]
 		finally:
 			self._users_rwlock.release_write()
