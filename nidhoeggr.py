@@ -1,12 +1,12 @@
 #!/usr/bin/env python2.2
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.8 2003/06/23 17:27:05 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.9 2003/06/23 18:54:00 ridcully Exp $"
 
 copyright = """
 Copyright 2003 Christoph Frick <rid@gmx.net>
-Copyright 2003 GPLOP Development Group
+Copyright 2003 iGOR Development Group
 All Rights Reserved
-This software is the proprietary information of the GPLOP Development Group
+This software is the proprietary information of the iGOR Development Group
 Use is subject to license terms
 """
 
