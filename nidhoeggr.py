@@ -7,7 +7,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.22 2003/11/08 15:37:05 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.23 2003/11/09 13:44:56 ridcully Exp $"
 
 DEFAULT_RACELISTPORT=27233
 DEFAULT_BROADCASTPORT=6970
@@ -216,8 +216,8 @@ class RaceList(tools.StopableThread): # {{{
 		log(Log.INFO, "store racelist to file '%s'" % filename )
 		try:
 			outf = open(filename, "w")
-			cPickle.dump(self._users, outf)
-			cPickle.dump(self._races, outf)
+			cPickle.dump(self._users, outf, 1 )
+			cPickle.dump(self._races, outf, 1 )
 			outf.close()
 		except Exception, e:
 			log(Log.WARNING,"failed to save racelist state to file '%s': %s" % (filename,e) )
@@ -560,7 +560,8 @@ class Middleware: # {{{
 	CLIENTINDENT="w196"
 	MODE_COMPRESS="c"
 	MODE_CLEARTEXT="t"
-	COMPRESS_MIN_LEN = 1024*1024
+	COMPRESS_MIN_LEN = 1024
+	COMPRESSIONLEVEL = 9
 	MAXSIZE=1024*1024
 	CELLSEPARATOR="\001"
 	ROWSEPARATOR="\002"
@@ -620,11 +621,14 @@ class Middleware: # {{{
 		"""
 		"""
 		mode = self.MODE_CLEARTEXT
-		if len(data)>self.COMPRESS_MIN_LEN:
+		l = len(data)
+		if l>self.COMPRESS_MIN_LEN:
 			mode = self.MODE_COMPRESS
 
 		if mode==self.MODE_COMPRESS:
-			data = zlib.compress(data,3)
+			data = zlib.compress(data,self.COMPRESSIONLEVEL)
+			if __debug__:
+				log(Log.DEBUG, "compression: %d -> %d" % (l,len(data)))
 
 		self.wfile.write(struct.pack(">4scL", self.CLIENTINDENT, mode, len(data))+data)
 
