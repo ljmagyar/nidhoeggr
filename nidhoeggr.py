@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.1 2004/09/26 16:24:49 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.2 2004/10/18 07:50:45 ridcully Exp $"
 
 __copyright__ = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -76,20 +76,18 @@ class RaceList(StopableThread): # {{{
 
 	def removeUser(self,client_id):
 		self._users_rwlock.acquire_write()
+		self._races_rwlock.acquire_write()
 		try:
 			if self.hasUser(client_id):
 				if self._usersuniqids.has_key(self._users[client_id].params['client_uniqid']):
 					del self._usersuniqids[self._users[client_id].params['client_uniqid']]
 				del self._users[client_id]
-		finally:
-			self._users_rwlock.release_write()
-		self._races_rwlock.acquire_write()
-		try:
 			for race in self._races.values():
 				race.removeDriver(client_id)
 			self._buildRaceListAsReply()
 		finally:
 			self._races_rwlock.release_write()
+			self._users_rwlock.release_write()
 
 	def getUser(self,client_id):
 		self._users_rwlock.acquire_read()
@@ -270,8 +268,8 @@ class RaceList(StopableThread): # {{{
 			try:
 				try:
 					outf = open(filename, "w")
-					cPickle.dump(self._users, outf, 1 )
-					cPickle.dump(self._races, outf, 1 )
+					cPickle.dump(self._users, outf )
+					cPickle.dump(self._races, outf )
 				finally:
 					try: 
 						outf.close()
@@ -282,8 +280,8 @@ class RaceList(StopableThread): # {{{
 				log(Log.WARNING,"failed to save racelist state to file '%s': %s" % (filename,e) )
 				return
 		finally:
-			self._users_rwlock.release_write()
 			self._races_rwlock.release_write()
+			self._users_rwlock.release_write()
 		log(Log.INFO, "stored racelist to file '%s'" % filename )
 
 	def _load(self):
@@ -316,8 +314,8 @@ class RaceList(StopableThread): # {{{
 			except Exception,e:
 				log(Log.WARNING, "failed to load racelist state from file '%s': %s" % (filename, e) )
 		finally:
-			self._users_rwlock.release_write()
 			self._races_rwlock.release_write()
+			self._users_rwlock.release_write()
 		self._buildRaceListAsReply()
 		self._state = RaceList.STATE_RUN
 
@@ -610,7 +608,7 @@ class RLServerList(StopableThread): # {{{
 			self._servers_rwlock.acquire_read()
 			try:
 				f = open(filename, "w")
-				cPickle.dump(self._servers,f,1)
+				cPickle.dump(self._servers,f)
 			finally:
 				self._servers_rwlock.release_read()
 				try: f.close()
