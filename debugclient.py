@@ -56,7 +56,7 @@ def test(bool,ontrue,onfalse):
 
 class DebugClient:
 
-	def __init__(self, servername, serverport):
+	def __init__(self, servername='localhost', serverport=DEFAULT_RACELISTPORT):
 		self.servername = servername
 		self.serverport = serverport
 

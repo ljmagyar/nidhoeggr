@@ -2,7 +2,7 @@
 
 import unittest
 import nidhoeggr
-import config
+from config import config
 from socket import socket, AF_INET, SOCK_STREAM
 
 class RacelistServerNetworkTest(unittest.TestCase):

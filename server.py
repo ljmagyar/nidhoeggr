@@ -4,7 +4,7 @@ import sys
 import signal
 import getopt
 
-import config
+from config import config
 from tools import log, Log
 import nidhoeggr
 
@@ -45,10 +45,7 @@ def main(argv=None):
 			config.configfile = a
 
 	# load the config
-	try:
-		config.load()
-	except config.ConfigError, e:
-		usage(e, 2)
+	config.load()
 	
 	# fire up the server
 	global server

@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.37 2004/02/29 16:11:41 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.38 2004/02/29 18:14:06 ridcully Exp $"
 
 copyright = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -27,22 +27,19 @@ import time
 import socket
 import random
 
-import config
+from config import config, DEFAULT_RACELISTPORT, DEFAULT_BROADCASTPORT
 from tools import *
 from request import *
 import paramchecks
 
 class RaceList(StopableThread): # {{{
-	
-
-	CLEANINTERVAL = 60.0 # seconds
 
 	STATE_START = 1
 	STATE_RUN = 2
 	STATE_STOP = 3
 
 	def __init__(self):
-		StopableThread.__init__(self,self.CLEANINTERVAL)
+		StopableThread.__init__(self,config.racelist_clean_interval)
 
 		self._users = {}
 		self._usersuniqids = {}
@@ -385,10 +382,8 @@ class RLServer(IdleWatcher): # {{{
 
 class RLServerList(StopableThread): # {{{
 
-	CLEANINTERVAL = 60.0 # seconds
-
 	def __init__(self):
-		StopableThread.__init__(self,self.CLEANINTERVAL)
+		StopableThread.__init__(self,config.serverlist_clean_interval)
 		self._servers = {}
 		self._servers_rwlock = ReadWriteLock()
 		self._load()
@@ -445,6 +440,9 @@ class RLServerList(StopableThread): # {{{
 	def getRealServerListAsReply(self):
 		ret = []
 		return ret
+
+	def _join(self):
+		self._save()
 
 	def _run(self):
 		ct = time.time()
@@ -823,7 +821,7 @@ class BroadCastServerRequestHandler(SocketServer.DatagramRequestHandler): # {{{
 
 class Client(Middleware): # {{{
 
-	def __init__(self, server, port=config.DEFAULT_RACELISTPORT):
+	def __init__(self, server, port=DEFAULT_RACELISTPORT):
 		self.server_address = (server,port)
 
 	def doLogin(self, client_uniq_id):
