@@ -1,0 +1,45 @@
+#------------------------------------------------------------------------------
+#
+# config file for nidhoeggr server
+#
+# this is a sample of the config to use. all lines starting with a # are
+# comments. line that are not needed are commented out - the default is shown
+# and you should only change it, if you know what you do
+#
+#------------------------------------------------------------------------------
+
+# fqdn or ip of this server - this is needed and the value localhost will fail
+servername = localhost
+
+#------------------------------------------------------------------------------
+# port config
+#------------------------------------------------------------------------------
+
+# port where the race list listens
+# racelistport = 30197
+
+# port where the server listens for broadcasts from gpl servers
+# broadcastport = 6970
+
+#------------------------------------------------------------------------------
+# timeouts - all values in seconds
+#------------------------------------------------------------------------------
+
+# idle time of a user  until it gets dropped
+# user_timeout = 3600
+
+# idle time of a race until it gets dropped
+# race_timeout = 90
+
+# idle time of a race list server  until it gets dropped
+# server_timeout = 90
+
+#------------------------------------------------------------------------------
+# fallback config
+#------------------------------------------------------------------------------
+
+# time in seconds the server checks for updates on other servers
+# server_update = 30
+
+# maximal amount of requests the server wants
+# server_maxload = 3

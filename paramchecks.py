@@ -22,7 +22,7 @@ def check_helmetcolour(value):
 def check_nationality(value):
 	return __int_range_check(value,0,28)
 
-def check_weight(value):
+def check_maxload(value):
 	return __int_range_check(value,0,9)
 
 def check_class(value):

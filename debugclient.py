@@ -4,7 +4,8 @@ from random import random, choice, randint
 from sys import argv
 from time import sleep
 
-from nidhoeggr import Client, DEFAULT_RACELISTPORT
+from nidhoeggr import Client
+from config import DEFAULT_RACELISTPORT
 
 
 def getFirstName():

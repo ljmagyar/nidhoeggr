@@ -4,10 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.34 2004/02/08 18:13:48 ridcully Exp $"
-
-DEFAULT_RACELISTPORT=30197
-DEFAULT_BROADCASTPORT=6970
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.35 2004/02/17 21:47:08 ridcully Exp $"
 
 copyright = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -16,6 +13,7 @@ All Rights Reserved
 This software is the proprietary information of the iGOR Development Group
 Use is subject to license terms
 """
+print copyright
 
 import sys
 import sha
@@ -29,6 +27,7 @@ import time
 import socket
 import random
 
+import config
 from tools import *
 from request import *
 
@@ -269,7 +268,7 @@ class Race(IdleWatcher): # {{{
 		
 		self.drivers = {}
 
-		IdleWatcher.__init__(self,900.0)
+		IdleWatcher.__init__(self,config.race_timeout)
 
 		self._initstateless()
 
@@ -346,11 +345,11 @@ class Race(IdleWatcher): # {{{
 class User(IdleWatcher): # {{{
 	
 
-	def __init__(self,client_uniqid,outsideip):
+	def __init__(self,client_uniqid,outside_ip):
 		self.params = {}
-		IdleWatcher.__init__(self, 3600.0)
+		IdleWatcher.__init__(self, config.user_timeout)
 		self.params['client_uniqid'] = client_uniqid
-		self.params['outsideip'] = outsideip
+		self.params['outside_ip'] = outside_ip
 		self.params['client_id'] = sha.new("%s%s%s" % (client_uniqid, time.time(), random.randint(0,1000000))).hexdigest()
 
 # }}}
@@ -358,7 +357,7 @@ class User(IdleWatcher): # {{{
 class RLServer(IdleWatcher): # {{{
 	def __init__(self,params):
 		self.params = params
-		IdleWatcher.__init__(self, 900.0)
+		IdleWatcher.__init__(self, config.server_timeout)
 		self._initstateless()
 
 	def _initstateless(self):
@@ -537,22 +536,21 @@ class RaceListProtocolException(Exception): # {{{
 class Server(SocketServer.ThreadingTCPServer): # {{{
 	
 
-	def __init__(self,servername,weight=0,racelistport=DEFAULT_RACELISTPORT,broadcastport=DEFAULT_BROADCASTPORT):
-		self._servername = servername
-		self._rls_id = sha.new("%s%s%s" % (SERVER_VERSION,servername,racelistport)).hexdigest()
-		self._racelistport = racelistport
-		self._broadcastport = broadcastport
-		self._weight = weight
+	def __init__(self):
+		self._servername = config.servername
+		self._racelistport = config.racelistport
+		self._broadcastport = config.broadcastport
+		self._maxload = config.server_maxload
+		self._rls_id = sha.new("%s%s%s" % (SERVER_VERSION,self._servername,self._racelistport)).hexdigest()
 		
-		print copyright
-		log(Log.INFO,"init %s on %s:%d" % (SERVER_VERSION,servername,racelistport))
+		log(Log.INFO,"init %s on %s:%d" % (SERVER_VERSION,self._servername,self._racelistport))
 
 		self.allow_reuse_address = 1
-		SocketServer.ThreadingTCPServer.__init__(self,("",racelistport),ServerRequestHandler)
+		SocketServer.ThreadingTCPServer.__init__(self,("",self._racelistport),ServerRequestHandler)
 
 		self._racelist = RaceList()
 
-		self._broadcastserver = BroadCastServer(self._racelist,broadcastport)
+		self._broadcastserver = BroadCastServer(self._racelist)
 
 		self._serverlist = RLServerList()
 
@@ -576,6 +574,8 @@ class Server(SocketServer.ThreadingTCPServer): # {{{
 
 		self.inshutdown = 0
 
+		self.register()
+
 	def _addRequestHandler(self,handler):
 		self._requesthandlers[handler.command] = handler
 
@@ -584,15 +584,11 @@ class Server(SocketServer.ThreadingTCPServer): # {{{
 			raise RaceListProtocolException(400, "empty request")
 		
 		command = request[0][0]
-		if __debug__:
-			log(Log.DEBUG,"request: "+str(request))
+		log(Log.INFO,"request %s from %s" % (str(request),client_address))
 
 		if not self._requesthandlers.has_key(command):
 			raise RaceListProtocolException(400, "unknown command")
 
-		log(Log.INFO, "command ``%s'' from %s:%d" % (command, client_address[0], client_address[1]))
-		if self._requesthandlers[command].distributable:
-			self._requestqueue.append(request)
 		return self._requesthandlers[command].handleRequest(client_address,request[0][1:])
 
 	def start(self):
@@ -611,7 +607,8 @@ class Server(SocketServer.ThreadingTCPServer): # {{{
 	def inShutdown(self):
 		return self.inshutdown!=0
 
-	def register(self, initserver=None, initserverport=None):
+	def register(self):
+		return # FIXME: is there a list loaded? then use this otherwise use init server from the config
 		if initserver is None:
 			(initserver,initserverport) = self._serverlist.getInitServer()
 		if initserver is None:
@@ -619,7 +616,7 @@ class Server(SocketServer.ThreadingTCPServer): # {{{
 		else:
 			try:
 				client = Client(initserver,initserverport)
-				result = client.doRequest([["rls_register", self._rls_id, self._servername, str(self._racelistport), str(self._weight)]])
+				result = client.doRequest([["rls_register", self._rls_id, self._servername, str(self._racelistport), str(self._maxload)]])
 				# for row in result:
 					# self._serverlist.addRLServer(row)
 			except Exception, e:
@@ -765,14 +762,14 @@ class ServerRequestHandler(SocketServer.StreamRequestHandler, Middleware): # {{{
 class BroadCastServer(SocketServer.ThreadingUDPServer, StopableThread): # {{{
 	
 
-	def __init__(self,racelist,broadcastport=DEFAULT_BROADCASTPORT):
-		log(Log.INFO,"init broadcast listen server on port %d" % (broadcastport))
+	def __init__(self,racelist):
+		log(Log.INFO,"init broadcast listen server on port %d" % (config.broadcastport))
 
 		StopableThread.__init__(self)
 		
 		self.racelist = racelist
 		self.allow_reuse_address = 1
-		SocketServer.ThreadingUDPServer.__init__(self,("",broadcastport),BroadCastServerRequestHandler)
+		SocketServer.ThreadingUDPServer.__init__(self,("",config.broadcastport),BroadCastServerRequestHandler)
 
 	def _run(self):
 		(infd,outfd,errfd) = select.select([self.socket], [], [], 1.0) # timout 1s
@@ -805,7 +802,7 @@ class BroadCastServerRequestHandler(SocketServer.DatagramRequestHandler): # {{{
 
 class Client(Middleware): # {{{
 
-	def __init__(self, server, port=DEFAULT_RACELISTPORT):
+	def __init__(self, server, port=config.DEFAULT_RACELISTPORT):
 		self.server_address = (server,port)
 
 	def doLogin(self, client_uniq_id):
