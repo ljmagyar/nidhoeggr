@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.54 2004/04/25 14:46:38 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.55 2004/04/25 15:31:34 ridcully Exp $"
 
 __copyright__ = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -574,9 +574,14 @@ class RLServerList(StopableThread): # {{{
 					rq = request.RLSUpdate()
 				result = client.doRequest(rq.generateCompleteRequest(self._rls.params))
 				for row in result:
-					self._racelistserver.handleDistributedRequest(row)
+					try:
+						self._racelistserver.handleDistributedRequest(row)
+					except Error, e:
+						if e.id not in [Error.AUTHERROR, Error.NOTFOUND]:
+							raise e
+						log(Log.WARNING, "error on executing request - ignoring: %s" % e)
 			except Exception, e:
-				log(Log.WARNING, "error getting update from rls=%s - deleting: %s" % (rls.params['rls_id'],e))
+				log(Log.ERROR, "error getting update from rls=%s - deleting: %s" % (rls.params['rls_id'],e))
 				self._servers_rwlock.acquire_write()
 				try:
 					changes = 1
