@@ -7,7 +7,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.18 2003/10/26 20:13:01 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.19 2003/10/26 20:27:24 ridcully Exp $"
 
 DEFAULT_RACELISTPORT=27233
 DEFAULT_BROADCASTPORT=6970
@@ -30,8 +30,6 @@ import string
 import cPickle
 import re
 import select
-import signal
-import getopt
 
 from tools import *
 import paramchecks
@@ -1032,58 +1030,5 @@ class RaceListBroadCastServerRequestHandler(SocketServer.DatagramRequestHandler)
 			log(Log.DEBUG, e)
 
 # }}}
-
-def handle_shutdown(signal,frame):
-	global server
-	server.stopServer()
-	sys.exit(0)
-
-def main(argv=None):
-	if argv==None:
-		argv = sys.argv
-	try:
-		racelistport = DEFAULT_RACELISTPORT
-		broadcastport = DEFAULT_BROADCASTPORT
-
-		try:
-			opts, args = getopt.getopt(argv[1:], "r:b:h")
-		except getopt.error, msg:
-			raise Exception(msg)
-
-		for o,a in opts:
-			if o in ("-h", "--help"): 
-				print >>sys.stderr, "Usage:"
-				print >>sys.stderr, "%s [-r <port>] [-b <port>]" % argv[0]
-				print >>sys.stderr, "-r <port>: port where the racelist server is listening (default=%d)" % DEFAULT_RACELISTPORT
-				print >>sys.stderr, "-b <port>: port where the broadcast listen server is listening (default=%d)" % DEFAULT_BROADCASTPORT
-				return 0
-
-			if o in ("-r", "--racelistport"):
-				try:
-					racelistport = string.atoi(a)
-					assert( 0 < racelistport < 65536 )
-				except Exception,e:
-					raise Exception("expect value between 1 and 65535 for raceport (%s)" % e)
-
-			if o in ("-b", "--broadcastport"):
-				try:
-					broadcastport = string.atoi(a)
-					assert( 0 < broadcastport < 65536 )
-				except Exception,e:
-					raise Usage("expect value between 1 and 65535 for broadcastport (%s)" % e)
-	except Exception, err:
-		print >>sys.stderr, err
-		print >>sys.stderr, "For help use -h"
-		return 2
-	
-	global server 
-	server = RaceListServer(racelistport,broadcastport)
-	signal.signal(signal.SIGINT, handle_shutdown)
-	signal.signal(signal.SIGTERM, handle_shutdown)
-	signal.signal(signal.SIGKILL, handle_shutdown)
-	server.startServer()
-
-if __name__=="__main__":
-	sys.exit(main())
 
 # vim:fdm=marker
