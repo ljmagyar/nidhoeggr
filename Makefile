@@ -1,4 +1,4 @@
-VERSION=0.6
+VERSION=1.0
 
 TARSRC=Makefile scary.pdf scary.tex command_documentation.tex debugclient.py nidhoeggr.py paramchecks.py request.py server.py tools.py genhelp.py
 TARDIR=nidhoeggr-$(VERSION)
