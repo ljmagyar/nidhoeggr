@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.2 2004/10/18 07:50:45 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.3 2004/11/13 21:33:56 ridcully Exp $"
 
 __copyright__ = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -15,19 +15,20 @@ Use is subject to license terms
 """
 print __copyright__
 
+from config import config, DEFAULT_RACELISTPORT
+
 import sys
 import sha
 import zlib
 import struct
+import socket; socket.setdefaulttimeout(config.sockettimeout)
 import SocketServer
 import string
 import cPickle
 import select
 import time
-import socket
 import random
 
-from config import config, DEFAULT_RACELISTPORT, DEFAULT_BROADCASTPORT
 from tools import *
 import request
 import paramchecks
@@ -858,6 +859,7 @@ class Middleware: # {{{
 				log(Log.ERROR,e)
 				raise Error(Error.REQUESTERROR, "error decompressing  data")
 
+		self.rfile.close()
 		return data
 
 	def sendData(self,data):
@@ -873,6 +875,7 @@ class Middleware: # {{{
 			self.wfile.write(struct.pack(">4scLL", self.CLIENTINDENT, mode, len(data), l)+data)
 		else:
 			self.wfile.write(struct.pack(">4scL", self.CLIENTINDENT, mode, len(data))+data)
+		self.wfile.close()
 
 	def send(self,data):
 		retdata = []

@@ -7,6 +7,7 @@ import paramchecks
 
 DEFAULT_RACELISTPORT=30197
 DEFAULT_BROADCASTPORT=30199
+DEFAULT_SOCKETTIMEOUT=15
 
 class ConfigVariable:
 	def __init__(self, key, default, check, cast):
@@ -38,6 +39,7 @@ class Config:
 		self.__registerConfigVariable(ConfigVariable('server_maxload',            3,                     paramchecks.check_suint,   int))
 		self.__registerConfigVariable(ConfigVariable('file_racelist',             'racelist.cpickle',    paramchecks.check_string,  str))
 		self.__registerConfigVariable(ConfigVariable('file_serverlist',           'serverlist.cpickle',  paramchecks.check_string,  str))
+		self.__registerConfigVariable(ConfigVariable('sockettimeout',             DEFAULT_SOCKETTIMEOUT, paramchecks.check_suint,   str))
 
 	def __registerConfigVariable(self,cv):
 		self.__config_vars[cv.key] = cv
