@@ -7,8 +7,8 @@ import getopt
 import nidhoeggr
 
 def handle_shutdown(signal,frame):
-	global server
 	# check if the server already shuts down
+	global server
 	if server.inShutdown():
 		print >>sys.stderr, "shutdown already in progress"
 		return
@@ -49,14 +49,14 @@ def main(argv=None):
 
 			if o in ("-r", "--racelistport"):
 				try:
-					racelistport = string.atoi(a)
+					racelistport = string.long(a)
 					assert( 0 < racelistport < 65536 )
 				except Exception,e:
 					usage("error in argument: expect value between 1 and 65535 for raceport (%s)" % e, 2)
 
 			if o in ("-b", "--broadcastport"):
 				try:
-					broadcastport = string.atoi(a)
+					broadcastport = string.long(a)
 					assert( 0 < broadcastport < 65536 )
 				except Exception,e:
 					usage("error in argument: expect value between 1 and 65535 for broadcastport (%s)" % e, 2)

@@ -19,7 +19,7 @@ for row in r.result:
 		fw.write( '\\begin{itemize}\n' )
 		paramcount = 0
 	elif row[0]=='parameter':
-		fw.write( '\\item %s\n' % re.sub(r'_',r'\\_',row[1]) )
+		fw.write( '\\item {\\tt %s}: %s\n' % (re.sub(r'_',r'\\_', row[1]), row[2]) )
 		paramcount = paramcount + 1
 	elif row[0]=='result':
 		if not paramcount:

@@ -7,14 +7,14 @@ TARNAME=$(TARDIR).tar.gz
 all:
 	@echo "Nothing to do"
 
+doc:scary.pdf
+
 tar:$(TARNAME)
 
-scary.tex:command_documentation.tex
-
-scary.dvi:scary.tex
+scary.dvi:scary.tex command_documentation.tex
 	latex scary.tex
 
-scary.pdf:scary.tex
+scary.pdf:scary.tex command_documentation.tex
 	pdflatex scary.tex
 
 $(TARNAME):$(TARSRC)

@@ -129,6 +129,7 @@ class StopableThread(threading.Thread): # {{{
 				self._stopevent.wait(self._sleep)
 
 	def _join(self):pass
+
 	def _run(self):pass
 
 # }}}

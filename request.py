@@ -405,7 +405,7 @@ class RequestHandlerHelp(RequestHandler, RequestHelp): # {{{
 			ret.append(['command', rh.command])
 			ret.append(['description', rh.description])
 			for pc in rh.paramconfig:
-				ret.append(['parameter', pc.paramname])
+				ret.append(['parameter', pc.paramname, pc.help])
 			ret.append(['result', rh.resultdescription])
 		return ret
 

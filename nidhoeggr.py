@@ -4,14 +4,14 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.30 2003/12/26 08:33:32 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.31 2004/01/01 19:11:57 ridcully Exp $"
 
 DEFAULT_RACELISTPORT=30197
 DEFAULT_BROADCASTPORT=6970
 
 copyright = """
-Copyright 2003 Christoph Frick <rid@zefix.tv>
-Copyright 2003 iGOR Development Group
+Copyright 2003,2004 Christoph Frick <rid@zefix.tv>
+Copyright 2003,2004 iGOR Development Group
 All Rights Reserved
 This software is the proprietary information of the iGOR Development Group
 Use is subject to license terms
@@ -22,7 +22,6 @@ import sha
 import zlib
 import struct
 import SocketServer
-import random
 import string
 import cPickle
 import select
@@ -238,10 +237,11 @@ class RaceList(tools.StopableThread): # {{{
 
 		log(log.INFO, "cleanup: %d/%d users; %d/%d races" % (userdelcount,usercount,racedelcount,racecount))
 
-	def _join(self,filename='racelist.cpickle'):
+	def _join(self):
 		"""
 		stores the current racelist in the given file
 		"""
+		filename='racelist.cpickle'
 		log(Log.INFO, "store racelist to file '%s'" % filename )
 		self.__state = RaceList.STATE_STOP
 		self._users_rwlock.acquire_write()
