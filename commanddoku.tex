@@ -7,133 +7,23 @@
 Login of the client/user onto the server. This command must be called before all others. This command will assure, that client and server speak the same version of the protocol.
 \item {\it Parmameters:}
 \begin{itemize}
-\item protocol\_version:string
-\item client\_version:string
-\item client\_uniqid:string
+\item protocol\_version
+\item client\_version
+\item client\_uniqid
 \end{itemize}
 \item {\it Result:}\\
 The reply contains 4 cells: protocol version, server version, client id for further requests, ip the connection came from
 \end{description}
 
-\subsection{req\_full}
+\subsection{endhost}
 
 \begin{description}
 \item {\it Description:}\\
-Returns a list of races and the drivers in this races.
+Stops the hosting of the race with the given id.
 \item {\it Parmameters:}
 \begin{itemize}
-\item client\_id:string
-\end{itemize}
-\item {\it Result:}\\
-The complete current racelist. Each line holds either a race or following the drivers of a race. Each line starts either with a cell containing R or D. Races consist of the following: 
-			
-		R, 
-		server\_id, 
-		ip, 
-		joinport, 
-		name, 
-		info1, 
-		info2, 
-		comment, 
-		isdedicatedserver, 
-		ispassworded, 
-		isbosspassworded, 
-		isauthenticedserver, 
-		allowedchassis, 
-		allowedcarclasses, 
-		allowsengineswapping, 
-		modindent, 
-		maxlatency, 
-		bandwidth, 
-		players,
-		maxplayers, 
-		trackdir, 
-		racetype, 
-		praclength, 
-		sessionleft, 
-		sessiontype,
-		aiplayers,
-		numraces,
-		repeatcount,
-		flags
-
-
-		The drivers contain this data:
-
-		D,
-		firstname,
-		lastname,
-		class\_id,
-		team\_id,
-		mod\_id,
-		nationality,
-		helmet\_colour,
-		qualifying\_time,
-		race\_position,
-		race\_laps,
-		race\_notes
-		
-\end{description}
-
-\subsection{host}
-
-\begin{description}
-\item {\it Description:}\\
-Starts hosting of a race. The given informations are used to describe the race and will be displayed in the same order in the racelist.
-\item {\it Parmameters:}
-\begin{itemize}
-\item client\_id:string
-\item joinport:suint
-\item name:string
-\item info1:string
-\item info2:string
-\item comment:string
-\item isdedicatedserver:boolean
-\item ispassworded:boolean
-\item isbosspassworded:boolean
-\item isauthenticedserver:boolean
-\item allowedchassis:chassisbitfield
-\item allowedcarclasses:carclassbitfield
-\item allowsengineswapping:boolean
-\item modindent:string
-\item maxlatency:suint
-\item bandwidth:bandwidthfield
-\item maxplayers:suint
-\item trackdir:string
-\item racetype:suint
-\item praclength:suint
-\item aiplayers:suint
-\item numraces:suint
-\item repeatcount:suint
-\item flags:string
-\item firstname:string
-\item lastname:string
-\item class\_id:suint
-\item team\_id:suint
-\item mod\_id:string
-\item nationality:suint
-\item helmet\_colour:suint
-\end{itemize}
-\item {\it Result:}\\
-A unique id for the server, that will be used to update the hosting and race informations and also by the clients to join/leave the race.
-\end{description}
-
-\subsection{join}
-
-\begin{description}
-\item {\it Description:}\\
-The client with the given id joins the server with the given id. Several informations about the driver itself are also submited for the list of races and their drivers.
-\item {\it Parmameters:}
-\begin{itemize}
-\item server\_id:string
-\item client\_id:string
-\item firstname:string
-\item lastname:string
-\item class\_id:suint
-\item team\_id:suint
-\item mod\_id:string
-\item nationality:suint
-\item helmet\_colour:suint
+\item server\_id
+\item client\_id
 \end{itemize}
 \item {\it Result:}\\
 Nothing.
@@ -146,22 +36,8 @@ Nothing.
 Removes the client with the given id from the server with the given id.
 \item {\it Parmameters:}
 \begin{itemize}
-\item server\_id:string
-\item client\_id:string
-\end{itemize}
-\item {\it Result:}\\
-Nothing.
-\end{description}
-
-\subsection{endhost}
-
-\begin{description}
-\item {\it Description:}\\
-Stops the hosting of the race with the given id.
-\item {\it Parmameters:}
-\begin{itemize}
-\item server\_id:string
-\item client\_id:string
+\item server\_id
+\item client\_id
 \end{itemize}
 \item {\it Result:}\\
 Nothing.
@@ -174,7 +50,7 @@ Nothing.
 Updates the informations of the given server.
 \item {\it Parmameters:}
 \begin{itemize}
-\item server\_id:string
+\item server\_id
 \end{itemize}
 \item {\it Result:}\\
 Nothing.
@@ -204,5 +80,129 @@ Returns a list of all implemented commands.
 \end{itemize}
 \item {\it Result:}\\
 For each command a line starting with command, then followed by a line for each param and finally a line starting with result, explaining the data sent back to the client.
+\end{description}
+
+\subsection{host}
+
+\begin{description}
+\item {\it Description:}\\
+Starts hosting of a race. The given informations are used to describe the race and will be displayed in the same order in the racelist.
+\item {\it Parmameters:}
+\begin{itemize}
+\item client\_id
+\item joinport
+\item name
+\item info1
+\item info2
+\item comment
+\item isdedicatedserver
+\item ispassworded
+\item isbosspassworded
+\item isauthenticedserver
+\item allowedchassis
+\item allowedcarclasses
+\item allowsengineswapping
+\item modindent
+\item maxlatency
+\item bandwidth
+\item maxplayers
+\item trackdir
+\item racetype
+\item praclength
+\item aiplayers
+\item numraces
+\item repeatcount
+\item flags
+\item firstname
+\item lastname
+\item class\_id
+\item team\_id
+\item mod\_id
+\item nationality
+\item helmet\_colour
+\end{itemize}
+\item {\it Result:}\\
+A unique id for the server, that will be used to update the hosting and race informations and also by the clients to join/leave the race.
+\end{description}
+
+\subsection{join}
+
+\begin{description}
+\item {\it Description:}\\
+The client with the given id joins the server with the given id. Several informations about the driver itself are also submited for the list of races and their drivers.
+\item {\it Parmameters:}
+\begin{itemize}
+\item server\_id
+\item client\_id
+\item firstname
+\item lastname
+\item class\_id
+\item team\_id
+\item mod\_id
+\item nationality
+\item helmet\_colour
+\end{itemize}
+\item {\it Result:}\\
+Nothing.
+\end{description}
+
+\subsection{req\_full}
+
+\begin{description}
+\item {\it Description:}\\
+Returns a list of races and the drivers in this races.
+\item {\it Parmameters:}
+\begin{itemize}
+\item client\_id
+\end{itemize}
+\item {\it Result:}\\
+The complete current racelist. Each line holds either a race or following the drivers of a race. Each line starts either with a cell containing R or D. Races consist of the following: 
+				
+			R, 
+			server\_id, 
+			ip, 
+			joinport, 
+			name, 
+			info1, 
+			info2, 
+			comment, 
+			isdedicatedserver, 
+			ispassworded, 
+			isbosspassworded, 
+			isauthenticedserver, 
+			allowedchassis, 
+			allowedcarclasses, 
+			allowsengineswapping, 
+			modindent, 
+			maxlatency, 
+			bandwidth, 
+			players,
+			maxplayers, 
+			trackdir, 
+			racetype, 
+			praclength, 
+			sessionleft, 
+			sessiontype,
+			aiplayers,
+			numraces,
+			repeatcount,
+			flags
+
+
+			The drivers contain this data:
+
+			D,
+			firstname,
+			lastname,
+			class\_id,
+			team\_id,
+			mod\_id,
+			nationality,
+			helmet\_colour,
+			qualifying\_time,
+			race\_position,
+			race\_laps,
+			race\_notes
+			
 \end{description}
 
