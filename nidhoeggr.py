@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.40 2004/03/09 20:24:15 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.41 2004/03/09 20:39:19 ridcully Exp $"
 
 copyright = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -68,7 +68,7 @@ class RaceList(StopableThread): # {{{
 				self._users[client_id] = user
 				self._usersuniqids[user.params['client_uniqid']] = user
 			else:
-				raise RaceListProtocolException(400, "user already registered")
+				raise Error(Error.REQUESTERROR, "user already registered")
 		finally:
 			self._users_rwlock.release_write()
 
@@ -86,7 +86,7 @@ class RaceList(StopableThread): # {{{
 		self._users_rwlock.acquire_read()
 		try:
 			if not self.hasUser(client_id):
-				raise RaceListProtocolException(401, "user unknown/not logged in")
+				raise Error(Error.AUTHERROR, "user unknown/not logged in")
 			ret = self._users[client_id]
 			ret.setActive()
 		finally:
@@ -105,7 +105,7 @@ class RaceList(StopableThread): # {{{
 				self._races[race.params['server_id']] = race
 				self._racesbroadcasts[race.params['broadcastid']] = race
 			else:
-				raise RaceListProtocolException(400, "race already registered")
+				raise Error(Error.REQUESTERROR, "race already registered")
 			self._buildRaceListAsReply()
 		finally:
 			self._races_rwlock.release_write()
@@ -115,13 +115,13 @@ class RaceList(StopableThread): # {{{
 		try:
 			if self.hasRace(server_id):
 				if self._races[server_id].params['client_id']!=client_id:
-					raise RaceListProtocolException(401, "authorization required")
+					raise Error(Error.AUTHERROR, "authorization required")
 				broadcastid = self._races[server_id].params['broadcastid']
 				if self._racesbroadcasts.has_key(broadcastid):
 					del self._racesbroadcasts[broadcastid]
 				del self._races[server_id]
 			else:
-				raise RaceListProtocolException(404, "unknown server_id")
+				raise Error(Error.NOTFOUND, "unknown server_id")
 			self._buildRaceListAsReply()
 		finally:
 			self._races_rwlock.release_write()
@@ -134,7 +134,7 @@ class RaceList(StopableThread): # {{{
 			if self.hasRace(server_id):
 				self._races[server_id].addDriver(driver)
 			else:
-				raise RaceListProtocolException(404, "unknown server_id")
+				raise Error(Error.NOTFOUND, "unknown server_id")
 			self._buildRaceListAsReply()
 		finally:
 			self._races_rwlock.release_write()
@@ -547,18 +547,15 @@ class Driver: # {{{
 		return self.params
 # }}}
 
-class RaceListProtocolException(Exception): # {{{
-	"""
-	see the scary documentation for a complete description. these are the
-	known ids:
+class Error(Exception): # {{{
 
-	200 OK
-	400 error in request
-	401 the user is no longer authentificated
-	404 the resource used in this request was not found
-	500 internal server error 
-	501 unimplemented command
-	"""
+	OK = 200
+	REQUESTERROR = 400
+	AUTHERROR = 401
+	NOTFOUND = 404
+	INTERNALERROR = 500
+	UNIMPLMENTED = 501
+
 	def __init__(self,id,description):
 		Exception.__init__(self, description)
 		self.id = id
@@ -615,13 +612,13 @@ class Server(SocketServer.ThreadingTCPServer): # {{{
 	def handleRequest(self,client_address,request):
 		self.calcLoad()
 		if len(request)==0 or len(request[0])==0:
-			raise RaceListProtocolException(400, "empty request")
+			raise Error(Error.REQUESTERROR, "empty request")
 		
 		command = request[0][0]
 		log(Log.INFO,"request %s from %s" % (str(request),client_address))
 
 		if not self._requesthandlers.has_key(command):
-			raise RaceListProtocolException(400, "unknown command")
+			raise Error(Error.REQUESTERROR, "unknown command")
 
 		return self._requesthandlers[command].handleRequest(client_address,request[0][1:])
 
@@ -674,63 +671,63 @@ class Middleware: # {{{
 	def readData(self):
 		clientident = self.rfile.read(4)
 		if clientident!=self.CLIENTINDENT:
-			raise RaceListProtocolException(400, "unknown client ident")
+			raise Error(Error.REQUESTERROR, "unknown client ident")
 
 		try:
 			rawmode = self.rfile.read(1)
 		except error,e:
 			log(Log.ERROR,e)
-			raise RaceListProtocolException(400, "error reading mode")
+			raise Error(Error.REQUESTERROR, "error reading mode")
 		if not rawmode:
-			raise RaceListProtocolException(400, "error reading mode")
+			raise Error(Error.REQUESTERROR, "error reading mode")
 
 		mode = struct.unpack(">c", rawmode)[0]
 
 		if mode!=self.MODE_CLEARTEXT and mode!=self.MODE_COMPRESS:
-			raise RaceListProtocolException(400, "unhandled mode %s" % (mode))
+			raise Error(Error.REQUESTERROR, "unhandled mode '%s'" % (mode))
 		
 		try:
 			rawdatasize = self.rfile.read(4)
 		except error,e:
 			log(Log.ERROR,e)
-			raise RaceListProtocolException(400, "error reading datasize")
+			raise Error(Error.REQUESTERROR, "error reading datasize")
 		if len(rawdatasize)!=4:
-			raise RaceListProtocolException(400, "error reading datasize")
+			raise Error(Error.REQUESTERROR, "error reading datasize")
 
 		datasize = struct.unpack(">L", rawdatasize)[0]
 
 		if datasize>self.MAXSIZE:
-			raise RaceListProtocolException(400, "unreasonable large size=%d" %(datasize))
+			raise Error(Error.REQUESTERROR, "unreasonable large size=%d" %(datasize))
 
 		if mode==self.MODE_COMPRESS:
 			try:
 				rawuncompresseddatasize = self.rfile.read(4)
 			except error,e:
 				log(Log.ERROR,e)
-				raise RaceListProtocolException(400, "error reading uncompressed datasize")
+				raise Error(Error.REQUESTERROR, "error reading uncompressed datasize")
 			if len(rawuncompresseddatasize)!=4:
-				raise RaceListProtocolException(400, "error reading uncompressed datasize")
+				raise Error(Error.REQUESTERROR, "error reading uncompressed datasize")
 
 			uncompresseddatasize = struct.unpack(">L", rawuncompresseddatasize)[0]
 
 			if uncompresseddatasize>self.MAXSIZE:
-				raise RaceListProtocolException(400, "unreasonable large uncompressed size=%d" %(uncompresseddatasize))
+				raise Error(Error.REQUESTERROR, "unreasonable large uncompressed size=%d" %(uncompresseddatasize))
 
 		try:
 			data = self.rfile.read(datasize)
 		except socket.error, e:
 			log(Log.ERROR,e)
-			raise RaceListProtocolException(400, "error reading data")
+			raise Error(Error.REQUESTERROR, "error reading data")
 
 		if len(data)!=datasize:
-			raise RaceListProtocolException(400, "error reading data")
+			raise Error(Error.REQUESTERROR, "error reading data")
 
 		if mode=="c":
 			try:
 				data = zlib.decompress(data)
 			except zlib.error,e:
 				log(Log.ERROR,e)
-				raise RaceListProtocolException(400, "error decompressing  data")
+				raise Error(Error.REQUESTERROR, "error decompressing  data")
 
 		return data
 
@@ -769,7 +766,7 @@ class Middleware: # {{{
 class ServerRequestHandler(SocketServer.StreamRequestHandler, Middleware): # {{{
 	
 
-	OK = RaceListProtocolException(200,'OK')
+	OK = Error(Error.OK,'OK')
 
 	def handle(self):
 		log(Log.DEBUG, "connection from %s:%d" % self.client_address )
@@ -782,7 +779,7 @@ class ServerRequestHandler(SocketServer.StreamRequestHandler, Middleware): # {{{
 				self.reply(self.OK, result)
 			finally:
 				self.server._requests_rwlock.release_read()
-		except RaceListProtocolException, e:
+		except Error, e:
 			# racelist errors are logged and sent to the client
 			log(Log.ERROR,e)
 			self.reply(e)
@@ -794,7 +791,7 @@ class ServerRequestHandler(SocketServer.StreamRequestHandler, Middleware): # {{{
 			# this are errors that should not be - try to send an
 			# error to the client, that something went wrong and
 			# re-raise the exception again
-			self.reply(RaceListProtocolException(500, "internal server error"))
+			self.reply(Error(Error.INTERNALERROR, "internal server error"))
 			raise
 
 # }}}
@@ -879,8 +876,8 @@ class Client(Middleware): # {{{
 		result = self.read()
 		self.rfile.close()
 		s.close()
-		status = RaceListProtocolException(int(result[0][0]), result[0][1])
-		if status.id <> 200:
+		status = Error(int(result[0][0]), result[0][1])
+		if status.id <> Error.OK:
 			raise status
 		return result[1:]
 

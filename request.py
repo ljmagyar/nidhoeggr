@@ -299,14 +299,14 @@ class RequestHandler: # {{{
 		"""
 		"""
 		if len(self.paramconfig) != len(values):
-			raise nidhoeggr.RaceListProtocolException(400,"param amount mismatch")
+			raise nidhoeggr.Error(Error.REQUESTERROR,"param amount mismatch")
 		params = {'ip':client_address[0]}
 		for i in range(len(self.paramconfig)):
 			value = values[i]
 			param = self.paramconfig[i]
 			checkresult = param.doCheck(value)
 			if checkresult != None:
-				raise nidhoeggr.RaceListProtocolException(400,"Error on %s: %s" % (param.paramname,checkresult))
+				raise nidhoeggr.Error(Error.REQUESTERROR,"Error on %s: %s" % (param.paramname,checkresult))
 			params[param.paramname] = value
 
 		return self._handleRequest(params)
@@ -325,9 +325,9 @@ class RequestHandlerLogin(RequestHandler, RequestLogin): # {{{
 	def _handleRequest(self,params):
 		if params["protocol_version"]!=PROTOCOL_VERSION:
 			if __debug__:
-				raise nidhoeggr.RaceListProtocolException(400, "wrong protcol version - expected '%s'"%PROTOCOL_VERSION)
+				raise nidhoeggr.Error(Error.REQUESTERROR, "wrong protcol version - expected '%s'"%PROTOCOL_VERSION)
 			else:
-				raise nidhoeggr.RaceListProtocolException(400, "wrong protcol version")
+				raise nidhoeggr.Error(Error.REQUESTERROR, "wrong protcol version")
 
 		user = self._server._racelist.getUserByUniqId(params["client_uniqid"])
 		if user is None:
@@ -424,7 +424,7 @@ class RequestHandlerReport(RequestHandler, RequestReport): # {{{
 
 	def _handleRequest(self,params):
 		# TODO
-		raise nidhoeggr.RaceListProtocolException(501, "not yet implemented")
+		raise nidhoeggr.Error(Error.UNIMPLMENTED, "not yet implemented")
 
 # }}}
 
