@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.62 2004/05/12 11:53:16 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.63 2004/05/12 12:18:01 ridcully Exp $"
 
 __copyright__ = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -241,6 +241,9 @@ class RaceList(StopableThread): # {{{
 				inf = open(filename, "r")
 				self._users = cPickle.load(inf)
 				self._races = cPickle.load(inf)
+				self._racesbroadcasts = {}
+				for race in self._races.values():
+					self._racesbroadcasts[race.params['broadcastid']] = race
 				self._usersuniqids = {}
 				for user in self._users.values():
 					self._usersuniqids[user.params['client_uniqid']] = user
@@ -291,6 +294,7 @@ class Race(IdleWatcher): # {{{
 		if not self.params.has_key('server_id'):
 			self.params["server_id"] = sha.new("%s%s%s%s%s" % (self.params['client_id'], self.params['ip'], self.params['joinport'], time.time(), random.randint(0,1000000))).hexdigest()
 		self.params["broadcastid"] = "%s:%s" % (self.params['ip'], self.params['joinport'])
+		log(Log.DEBUG, "registering broadcast id %s" % self.params["broadcastid"])
 
 		self.params["sessiontype"] = 0
 		self.params["sessionleft"] = self.params['praclength']
