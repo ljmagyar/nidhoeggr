@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.45 2004/03/22 21:41:57 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.46 2004/03/22 23:04:59 ridcully Exp $"
 
 __copyright__ = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -388,6 +388,7 @@ class RLServerList(StopableThread): # {{{
 
 	def __init__(self):
 		StopableThread.__init__(self,config.serverlist_clean_interval)
+		self._rls_id = sha.new("%s%s%s" % (SERVER_VERSION,config.servername,config.racelistport)).hexdigest()
 		self._servers = {}
 		self._servers_rwlock = ReadWriteLock()
 		self._load()
@@ -438,6 +439,7 @@ class RLServerList(StopableThread): # {{{
 		except Exception, e:
 			log(Log.WARNING, "failed to load server list from file '%s': %s" % (filename, e))
 		self._buildServerListReply()
+		self.client = None
 	
 	def _save(self):
 		filename = config.file_serverlist
@@ -474,6 +476,8 @@ class RLServerList(StopableThread): # {{{
 		self._save()
 
 	def _run(self):
+		if self.client is None:
+			self.register()
 		ct = time.time()
 		self._servers_rwlock.acquire_write()
 		try:
@@ -489,22 +493,17 @@ class RLServerList(StopableThread): # {{{
 		if len(self._servers):
 			rls = self._servers.values()[0]
 			return (rls.params['name'],rls.params['port'])
-		return (None,None)
+		return (config.initserver_name,config.initserver_port)
 
 	def register(self):
-		return # FIXME: is there a list loaded? then use this otherwise use init server from the config
-		if initserver is None:
-			(initserver,initserverport) = self._serverlist.getInitServer()
-		if initserver is None:
-			log(Log.WARNING, "No init server given and no server list found - this server runs as ``root'' server")
-		else:
-			try:
-				client = Client(initserver,initserverport)
-				result = client.doRequest([["rls_register", self._rls_id, self._servername, str(self._racelistport), str(self._maxload)]])
-				# for row in result:
-					# self._serverlist.addRLServer(row)
-			except Exception, e:
-				log(Log.WARNING, "Error on registering to init server: %s" % e)
+		initserver_name,initserver_port = self.getInitServer()
+		try:
+			client = Client(initserver_name,initserver_port)
+			result = client.doRequest([["rls_register", self._rls_id, config.servername, str(config.racelistport), str(config.server_maxload)]])
+			for row in result:
+				self._serverlist.addRLServer(row)
+		except Exception, e:
+			log(Log.WARNING, "Error on registering to init server: %s" % e)
 	
 # }}}
 
@@ -840,8 +839,6 @@ class Server: # {{{
 	
 
 	def __init__(self):
-		self._rls_id = sha.new("%s%s%s" % (SERVER_VERSION,config.servername,config.racelistport)).hexdigest()
-		
 		self._racelist = RaceList()
 		self._serverlist = RLServerList()
 		self._racelistserver = RaceListServer(self._racelist, self._serverlist)

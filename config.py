@@ -25,6 +25,8 @@ class Config:
 		self.__registerConfigVariable(ConfigVariable('servername',                'localhost',           paramchecks.check_string))
 		self.__registerConfigVariable(ConfigVariable('racelistport',              DEFAULT_RACELISTPORT,  paramchecks.check_suint))
 		self.__registerConfigVariable(ConfigVariable('broadcastport',             DEFAULT_BROADCASTPORT, paramchecks.check_suint))
+		self.__registerConfigVariable(ConfigVariable('initserver_name',           "maserati.blw.net",    paramchecks.check_string))
+		self.__registerConfigVariable(ConfigVariable('initserver_port',           DEFAULT_RACELISTPORT,  paramchecks.check_suint))
 		self.__registerConfigVariable(ConfigVariable('user_timeout',              3600,                  paramchecks.check_suint))
 		self.__registerConfigVariable(ConfigVariable('race_timeout',              300,                   paramchecks.check_suint))
 		self.__registerConfigVariable(ConfigVariable('server_timeout',            90,                    paramchecks.check_suint))

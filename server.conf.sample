@@ -39,6 +39,11 @@ servername = localhost
 # server reproduction config
 #------------------------------------------------------------------------------
 
+# name and port of the server, this server starts to register to, if there is
+# no server list locally available
+# initserver_name = maserati.blw.net
+# initserver_port = 30197
+
 # time in seconds the server checks for updates on other servers
 # server_update = 30
 
