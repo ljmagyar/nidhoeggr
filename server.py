@@ -103,8 +103,6 @@ def main(argv=None):
 		signal.signal(signal.SIGINT, handle_shutdown)
 	if hasattr(signal, "SIGTERM"):
 		signal.signal(signal.SIGTERM, handle_shutdown)
-	if hasattr(signal, "SIGKILL"):
-		signal.signal(signal.SIGKILL, handle_shutdown)
 	server.start()
 
 if __name__=="__main__":
