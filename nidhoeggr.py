@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.29 2003/12/26 07:07:32 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.30 2003/12/26 08:33:32 ridcully Exp $"
 
 DEFAULT_RACELISTPORT=30197
 DEFAULT_BROADCASTPORT=6970
@@ -63,13 +63,23 @@ class RaceList(tools.StopableThread): # {{{
 
 		self._load()
 
+	def hasUser(self, client_id):
+		"""
+		"""
+		return self._users.has_key(client_id)
+
+	def hasRace(self, server_id):
+		"""
+		"""
+		return self._races.has_key(server_id)
+
 	def addUser(self,user):
 		"""
 		"""
 		self._users_rwlock.acquire_write()
 		try:
 			client_id = user.params['client_id']
-			if not self._users.has_key(client_id):
+			if not self.hasUser(client_id):
 				self._users[client_id] = user
 				self._usersuniqids[user.params['client_uniqid']] = user
 			else:
@@ -82,7 +92,7 @@ class RaceList(tools.StopableThread): # {{{
 		"""
 		self._users_rwlock.acquire_write()
 		try:
-			if self._users.has_key(client_id):
+			if self.hasUser(client_id):
 				del self._usersuniqids[self._users[client_id].params['client_uniqid']]
 				del self._users[client_id]
 		finally:
@@ -93,7 +103,7 @@ class RaceList(tools.StopableThread): # {{{
 		"""
 		self._users_rwlock.acquire_read()
 		try:
-			if not self._users.has_key(client_id):
+			if not self.hasUser(client_id):
 				raise RaceListProtocolException(401, "user unknown/not logged in")
 			ret = self._users[client_id]
 			ret.setActive()
@@ -113,7 +123,7 @@ class RaceList(tools.StopableThread): # {{{
 		"""
 		self._races_rwlock.acquire_write()
 		try:
-			if not self._races.has_key(race.params['server_id']):
+			if not self.hasRace(race.params['server_id']):
 				self._races[race.params['server_id']] = race
 				self._racesbroadcasts[race.params['broadcastid']] = race
 			else:
@@ -127,7 +137,7 @@ class RaceList(tools.StopableThread): # {{{
 		"""
 		self._races_rwlock.acquire_write()
 		try:
-			if self._races.has_key(server_id):
+			if self.hasRace(server_id):
 				if self._races[server_id].params['client_id']!=client_id:
 					raise RaceListProtocolException(401, "authorization required")
 				broadcastid = self._races[server_id].params['broadcastid']
@@ -147,7 +157,7 @@ class RaceList(tools.StopableThread): # {{{
 		try:
 			for race in self._races.values():
 				race.removeDriver(driver.params['client_id'])
-			if self._races.has_key(server_id):
+			if self.hasRace(server_id):
 				self._races[server_id].addDriver(driver)
 			else:
 				raise RaceListProtocolException(404, "unknown server_id")
@@ -160,7 +170,7 @@ class RaceList(tools.StopableThread): # {{{
 		"""
 		self._races_rwlock.acquire_write()
 		try:
-			if self._races.has_key(server_id):
+			if self.hasRace(server_id):
 				self._races[server_id].removeDriver(client_id)
 			else:
 				raise RaceListProtocolException(404, "unknown server_id")
@@ -297,11 +307,16 @@ class Race(tools.IdleWatcher): # {{{
 		tools.IdleWatcher.__init__(self,900.0)
 		self._rwlock = tools.ReadWriteLock()
 
+	def hasDriver(self, client_id):
+		"""
+		"""
+		return self.drivers.has_key(client_id)
+
 	def addDriver(self,driver):
 		"""
 		"""
 		client_id = driver.params['client_id']
-		if not self.drivers.has_key(client_id):
+		if not self.hasDriver(client_id):
 			self.setActive()
 			self.drivers[client_id] = driver
 		# silently ignore the request, if this driver has already joined the race
@@ -309,7 +324,7 @@ class Race(tools.IdleWatcher): # {{{
 	def removeDriver(self,client_id):
 		"""
 		"""
-		if self.drivers.has_key(client_id):
+		if self.hasDriver(client_id):
 			self.setActive()
 			del self.drivers[client_id]
 		# silently ignore the request, if there is no driver with this id in the race
@@ -457,12 +472,14 @@ class Server(SocketServer.ThreadingTCPServer): # {{{
 	"""
 	"""
 
-	def __init__(self,racelistport=DEFAULT_RACELISTPORT,broadcastport=DEFAULT_BROADCASTPORT):
+	def __init__(self,servername,racelistport=DEFAULT_RACELISTPORT,broadcastport=DEFAULT_BROADCASTPORT):
 		"""
 		"""
-		print copyright
-		log(Log.INFO,"init %s on port %d" % (SERVER_VERSION,racelistport))
+		self._servername = servername
 		
+		print copyright
+		log(Log.INFO,"init %s on %s:%d" % (SERVER_VERSION,servername,racelistport))
+
 		self.allow_reuse_address = 1
 		SocketServer.ThreadingTCPServer.__init__(self,("",racelistport),ServerRequestHandler)
 
@@ -500,6 +517,7 @@ class Server(SocketServer.ThreadingTCPServer): # {{{
 
 		if not self._requesthandlers.has_key(command):
 			raise RaceListProtocolException(400, "unknown command")
+		log(log.INFO, "command ``%s'' from %s:%d" % (command, client_address[0], client_address[1]))
 		return self._requesthandlers[command].handleRequest(client_address,request[0][1:])
 
 	def start(self):
@@ -648,7 +666,7 @@ class ServerRequestHandler(SocketServer.StreamRequestHandler, Middleware): # {{{
 	def handle(self):
 		"""
 		"""
-		log(Log.INFO, "connection from %s:%d" % self.client_address )
+		log(Log.DEBUG, "connection from %s:%d" % self.client_address )
 
 		try:
 			request = self.read()
@@ -659,11 +677,11 @@ class ServerRequestHandler(SocketServer.StreamRequestHandler, Middleware): # {{{
 			log(Log.ERROR,e)
 			self.send([], e)
 		except IOError, e:
-			# something went wrong with the connection - we cant
+			# something went tits up with the connection - we cant
 			# help here just log and bailout
 			log(Log.ERROR, e)
 		except Exception, e:
-			# this are error that should not be - try to send an
+			# this are errors that should not be - try to send an
 			# error to the client, that something went wrong and
 			# re-raise the exception again
 			self.send([], RaceListProtocolException(500, "internal server error"))
