@@ -1,6 +1,6 @@
 #!/usr/bin/env python2.2
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.14 2003/08/11 22:10:28 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.15 2003/08/13 19:04:07 ridcully Exp $"
 
 copyright = """
 Copyright 2003 Christoph Frick <rid@zefix.tv>
@@ -21,6 +21,7 @@ import string
 import threading
 import cPickle
 import re
+import select
 
 class Log: # {{{
 	"""
@@ -1081,6 +1082,15 @@ class RaceListServer(SocketServer.ThreadingTCPServer): # {{{
 		self._broadcastserver.start()
 		self.serve_forever()
 
+	def stopServer(self):
+		"""
+		"""
+		log(Log.INFO,"shutting down server");
+		log(Log.INFO,"waiting for broadcast server");
+		self._broadcastserver.join()
+		log(Log.INFO,"waiting for racelist");
+		self._racelist.join()
+
 # }}}
 
 class RaceListServerRequestHandler(SocketServer.StreamRequestHandler): # {{{
@@ -1185,7 +1195,9 @@ class RaceListBroadCastServer(SocketServer.ThreadingUDPServer, StopableThread): 
 	def _run(self):
 		"""
 		"""
-		self.handle_request()
+		(infd,outfd,errfd) = select.select([self.socket], [], [], 1.0) # timout 1s
+		if self.socket in infd:
+			self.handle_request()
 # }}}
 
 class RaceListBroadCastServerRequestHandler(SocketServer.DatagramRequestHandler): # {{{
@@ -1238,7 +1250,7 @@ class Nidhoeggr: # {{{
 			log(Log.INFO,"starting racelist server")
 			self.racelistserver.startServer()
 		except KeyboardInterrupt:
-			log(Log.INFO,"shutting down server");
+			self.racelistserver.stopServer()
 
 
 # }}}

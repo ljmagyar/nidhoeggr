@@ -29,7 +29,6 @@ The complete current racelist. Each line holds either a race or following the dr
 			
 		R, 
 		server\_id, 
-		realip, 
 		ip, 
 		joinport, 
 		name, 
@@ -84,7 +83,6 @@ Starts hosting of a race. The given informations are used to describe the race a
 \item {\it Parmameters:}
 \begin{itemize}
 \item client\_id:string
-\item ip:ip
 \item joinport:suint
 \item name:string
 \item info1:string
@@ -108,6 +106,13 @@ Starts hosting of a race. The given informations are used to describe the race a
 \item numraces:suint
 \item repeatcount:suint
 \item flags:string
+\item firstname:string
+\item lastname:string
+\item class\_id:suint
+\item team\_id:suint
+\item mod\_id:string
+\item nationality:suint
+\item helmet\_colour:suint
 \end{itemize}
 \item {\it Result:}\\
 A unique id for the server, that will be used to update the hosting and race informations and also by the clients to join/leave the race.
