@@ -4,9 +4,9 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.28 2003/11/16 15:10:47 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.29 2003/12/26 07:07:32 ridcully Exp $"
 
-DEFAULT_RACELISTPORT=27233
+DEFAULT_RACELISTPORT=30197
 DEFAULT_BROADCASTPORT=6970
 
 copyright = """
@@ -68,9 +68,10 @@ class RaceList(tools.StopableThread): # {{{
 		"""
 		self._users_rwlock.acquire_write()
 		try:
-			if not self._users.has_key(user.client_id):
-				self._users[user.client_id] = user
-				self._usersuniqids[user.client_uniqid] = user
+			client_id = user.params['client_id']
+			if not self._users.has_key(client_id):
+				self._users[client_id] = user
+				self._usersuniqids[user.params['client_uniqid']] = user
 			else:
 				raise RaceListProtocolException(400, "user already registered")
 		finally:
@@ -82,7 +83,7 @@ class RaceList(tools.StopableThread): # {{{
 		self._users_rwlock.acquire_write()
 		try:
 			if self._users.has_key(client_id):
-				del self._usersuniqids[self._users[client_id].client_uniqid]
+				del self._usersuniqids[self._users[client_id].params['client_uniqid']]
 				del self._users[client_id]
 		finally:
 			self._users_rwlock.release_write()
@@ -112,9 +113,9 @@ class RaceList(tools.StopableThread): # {{{
 		"""
 		self._races_rwlock.acquire_write()
 		try:
-			if not self._races.has_key(race.server_id):
-				self._races[race.server_id] = race
-				self._racesbroadcasts[race.broadcastid] = race
+			if not self._races.has_key(race.params['server_id']):
+				self._races[race.params['server_id']] = race
+				self._racesbroadcasts[race.params['broadcastid']] = race
 			else:
 				raise RaceListProtocolException(400, "race already registered")
 			self._buildRaceListAsReply()
@@ -127,10 +128,11 @@ class RaceList(tools.StopableThread): # {{{
 		self._races_rwlock.acquire_write()
 		try:
 			if self._races.has_key(server_id):
-				if self._races[server_id].client_id!=client_id:
+				if self._races[server_id].params['client_id']!=client_id:
 					raise RaceListProtocolException(401, "authorization required")
-				if self._racesbroadcasts.has_key(self._races[server_id].broadcastid):
-					del self._racesbroadcasts[self._races[server_id].broadcastid]
+				broadcastid = self._races[server_id].params['broadcastid']
+				if self._racesbroadcasts.has_key(broadcastid):
+					del self._racesbroadcasts[broadcastid]
 				del self._races[server_id]
 			else:
 				raise RaceListProtocolException(404, "unknown server_id")
@@ -144,7 +146,7 @@ class RaceList(tools.StopableThread): # {{{
 		self._races_rwlock.acquire_write()
 		try:
 			for race in self._races.values():
-				race.removeDriver(driver.client_id)
+				race.removeDriver(driver.params['client_id'])
 			if self._races.has_key(server_id):
 				self._races[server_id].addDriver(driver)
 			else:
@@ -222,7 +224,7 @@ class RaceList(tools.StopableThread): # {{{
 				if __debug__:
 					log(Log.DEBUG, "removing race %s" % server_id )
 				racedelcount = racedelcount + 1
-				self.removeRace(server_id, self._races[server_id].client_id)
+				self.removeRace(server_id, self._races[server_id].params['client_id'])
 
 		log(log.INFO, "cleanup: %d/%d users; %d/%d races" % (userdelcount,usercount,racedelcount,racecount))
 
@@ -259,7 +261,7 @@ class RaceList(tools.StopableThread): # {{{
 				self._races_rwlock.release_write()
 			self._usersuniqids = {}
 			for user in self._users.values():
-				self._usersuniqids[user.client_uniqid] = user
+				self._usersuniqids[user.params['client_uniqid']] = user
 			inf.close()
 		except Exception,e:
 			log(Log.WARNING, "failed to load racelist state from file '%s': %s" % (filename, e) )
@@ -276,13 +278,13 @@ class Race(tools.IdleWatcher): # {{{
 		"""
 		"""
 		self.params = params
-		if self.ip=='127.0.0.1':
-			self.ip = random.choice([ '193.99.144.71', '206.231.101.19', '80.15.238.104', '80.15.238.102' ])
-		self.params["server_id"] = sha.new("%s%s%s%s%s" % (self.client_id,self.ip, self.joinport, time.time(), random.randint(0,1000000))).hexdigest()
-		self.params["broadcastid"] = "%s:%s" % (self.ip, self.joinport)
+		if self.params['ip']=='127.0.0.1':
+			self.params['ip'] = random.choice([ '193.99.144.71', '206.231.101.19', '80.15.238.104', '80.15.238.102' ])
+		self.params["server_id"] = sha.new("%s%s%s%s%s" % (self.params['client_id'], self.params['ip'], self.params['joinport'], time.time(), random.randint(0,1000000))).hexdigest()
+		self.params["broadcastid"] = "%s:%s" % (self.params['ip'], self.params['joinport'])
 
 		self.params["sessiontype"] = 0
-		self.params["sessionleft"] = self.praclength
+		self.params["sessionleft"] = self.params['praclength']
 		self.params["players"]     = 0
 		
 		self.drivers = {}
@@ -298,9 +300,10 @@ class Race(tools.IdleWatcher): # {{{
 	def addDriver(self,driver):
 		"""
 		"""
-		if not self.drivers.has_key(driver.client_id):
+		client_id = driver.params['client_id']
+		if not self.drivers.has_key(client_id):
 			self.setActive()
-			self.drivers[driver.client_id] = driver
+			self.drivers[client_id] = driver
 		# silently ignore the request, if this driver has already joined the race
 
 	def removeDriver(self,client_id):
@@ -315,56 +318,47 @@ class Race(tools.IdleWatcher): # {{{
 		"""
 		"""
 		self.setActive()
-		self.players     = players
-		self.maxplayers  = maxplayers
-		self.trackdir    = trackdir
-		self.sessiontype = sessiontype
-		self.sessionleft = sessionleft
+		self.params['players']     = players
+		self.params['maxplayers']  = maxplayers
+		self.params['trackdir']    = trackdir
+		self.params['sessiontype'] = sessiontype
+		self.params['sessionleft'] = sessionleft
 
 	def getRaceAsReply(self):
 		"""
 		"""
 		ret = (
 			"R",
-			str(self.server_id),
-			str(self.ip),
-			str(self.joinport),
-			str(self.name),
-			str(self.info1),
-			str(self.info2),
-			str(self.comment),
-			str(self.isdedicatedserver),
-			str(self.ispassworded),
-			str(self.isbosspassworded),
-			str(self.isauthenticedserver),
-			str(self.allowedchassis),
-			str(self.allowedcarclasses),
-			str(self.allowsengineswapping),
-			str(self.modindent),
-			str(self.maxlatency),
-			str(self.bandwidth),
-			str(self.players),
-			str(self.maxplayers),
-			str(self.trackdir),
-			str(self.racetype),
-			str(self.praclength),
-			str(self.sessiontype),
-			str(self.sessionleft),
-			str(self.aiplayers),
-			str(self.numraces),
-			str(self.repeatcount),
-			str(self.flags)
+			str(self.params['server_id']),
+			str(self.params['ip']),
+			str(self.params['joinport']),
+			str(self.params['name']),
+			str(self.params['info1']),
+			str(self.params['info2']),
+			str(self.params['comment']),
+			str(self.params['isdedicatedserver']),
+			str(self.params['ispassworded']),
+			str(self.params['isbosspassworded']),
+			str(self.params['isauthenticedserver']),
+			str(self.params['allowedchassis']),
+			str(self.params['allowedcarclasses']),
+			str(self.params['allowsengineswapping']),
+			str(self.params['modindent']),
+			str(self.params['maxlatency']),
+			str(self.params['bandwidth']),
+			str(self.params['players']),
+			str(self.params['maxplayers']),
+			str(self.params['trackdir']),
+			str(self.params['racetype']),
+			str(self.params['praclength']),
+			str(self.params['sessiontype']),
+			str(self.params['sessionleft']),
+			str(self.params['aiplayers']),
+			str(self.params['numraces']),
+			str(self.params['repeatcount']),
+			str(self.params['flags'])
 		)
 		return ret
-
-	def __getattr__(self,name):
-		"""
-		"""
-		if self.params.has_key(name):
-			return self.params[name]
-		if hasattr(self,name):
-			return getattr(self,name)
-		raise AttributeError, "No such attribute: "+name
 
 	def __getstate__(self):
 		"""
@@ -386,11 +380,12 @@ class User(tools.IdleWatcher): # {{{
 	def __init__(self,client_uniqid,outsideip):
 		"""
 		"""
+		self.params = {}
 		tools.IdleWatcher.__init__(self, 3600.0)
+		self.params['client_uniqid'] = client_uniqid
+		self.params['outsideip'] = outsideip
+		self.params['client_id'] = sha.new("%s%s%s" % (client_uniqid, time.time(), random.randint(0,1000000))).hexdigest()
 
-		self.client_uniqid = client_uniqid
-		self.outsideip = outsideip
-		self.client_id = sha.new("%s%s%s" % (self.client_uniqid, time.time(), random.randint(0,1000000))).hexdigest()
 # }}}
 
 class Driver: # {{{
@@ -401,7 +396,7 @@ class Driver: # {{{
 		"""
 		"""
 		self.params = params
-		self.params["client_id"] = user.client_id
+		self.params["client_id"] = user.params['client_id']
 		self.params["qualifying_time"] = ""
 		self.params["race_position"]   = ""
 		self.params["race_laps"]       = ""
@@ -414,17 +409,17 @@ class Driver: # {{{
 	def getDriverAsReply(self):
 		ret = (
 			"D",
-			str(self.firstname),
-			str(self.lastname),
-			str(self.class_id),
-			str(self.team_id),
-			str(self.mod_id),
-			str(self.nationality),
-			str(self.helmet_colour),
-			str(self.qualifying_time),
-			str(self.race_position),
-			str(self.race_laps),
-			str(self.race_notes)
+			str(self.params['firstname']),
+			str(self.params['lastname']),
+			str(self.params['class_id']),
+			str(self.params['team_id']),
+			str(self.params['mod_id']),
+			str(self.params['nationality']),
+			str(self.params['helmet_colour']),
+			str(self.params['qualifying_time']),
+			str(self.params['race_position']),
+			str(self.params['race_laps']),
+			str(self.params['race_notes'])
 		)
 		return ret
 
@@ -435,15 +430,6 @@ class Driver: # {{{
 		self.params["race_position"]   = params["race_position"]
 		self.params["race_laps"]       = params["race_laps"]
 		self.params["race_notes"]      = params["race_notes"]
-
-	def __getattr__(self, name):
-		"""
-		"""
-		if self.params.has_key(name):
-			return self.params[name]
-		if hasattr(self,name):
-			return getattr(self,name)
-		raise AttributeError, "No such attribute: "+name
 
 	def __setstate__(self,data):
 		"""
@@ -545,7 +531,7 @@ class Middleware: # {{{
 	CLIENTINDENT="w196"
 	MODE_COMPRESS="c"
 	MODE_CLEARTEXT="t"
-	COMPRESS_MIN_LEN = 1024*1024
+	COMPRESS_MIN_LEN = 1024
 	COMPRESSIONLEVEL = 5
 	MAXSIZE=1024*1024
 	CELLSEPARATOR="\001"
@@ -584,6 +570,20 @@ class Middleware: # {{{
 		if datasize>self.MAXSIZE:
 			raise RaceListProtocolException(400, "unreasonable large size=%d" %(datasize))
 
+		if mode==self.MODE_COMPRESS:
+			try:
+				rawuncompresseddatasize = self.rfile.read(4)
+			except error,e:
+				log(Log.ERROR,e)
+				raise RaceListProtocolException(400, "error reading uncompressed datasize")
+			if len(rawuncompresseddatasize)!=4:
+				raise RaceListProtocolException(400, "error reading uncompressed datasize")
+
+			uncompresseddatasize = struct.unpack(">L", rawuncompresseddatasize)[0]
+
+			if uncompresseddatasize>self.MAXSIZE:
+				raise RaceListProtocolException(400, "unreasonable large uncompressed size=%d" %(uncompresseddatasize))
+
 		try:
 			data = self.rfile.read(datasize)
 		except socket.error, e:
@@ -614,8 +614,9 @@ class Middleware: # {{{
 			data = zlib.compress(data,self.COMPRESSIONLEVEL)
 			if __debug__:
 				log(Log.DEBUG, "compression: %d -> %d" % (l,len(data)))
-
-		self.wfile.write(struct.pack(">4scL", self.CLIENTINDENT, mode, len(data))+data)
+			self.wfile.write(struct.pack(">4scLL", self.CLIENTINDENT, mode, len(data), l)+data)
+		else:
+			self.wfile.write(struct.pack(">4scL", self.CLIENTINDENT, mode, len(data))+data)
 
 	def send(self,reply,exception=None):
 		"""

@@ -27,8 +27,13 @@ def getLastName():
 def getMod():
 	return choice([
 			'gpl',
-			'gpl1955',
-			'gpl1965'
+			'gpl55',
+			'gpl65',
+			'gplat',
+			'gplbt',
+			'gples',
+			'gplfd',
+			'gplfg'
 	])
 
 def getTrack():
@@ -50,10 +55,10 @@ r = nidhoeggr.RequestSender(c, [[
 			'Info 1',
 			'Info 2',
 			'Comment',
-			'0',
-			'0',
-			'0',
-			'0',
+			str(randint(0,1)),
+			str(randint(0,1)),
+			str(randint(0,1)),
+			str(randint(0,1)),
 			'1111111',
 			'111',
 			'0',

@@ -285,7 +285,7 @@ class RequestHandlerLogin(RequestHandler, RequestLogin): # {{{
 			user = nidhoeggr.User(params["client_uniqid"],params['ip'])
 			self._racelist.addUser(user)
 
-		return [[PROTOCOL_VERSION,nidhoeggr.SERVER_VERSION,user.client_id,user.outsideip]]
+		return [[PROTOCOL_VERSION,nidhoeggr.SERVER_VERSION,user.params['client_id'],user.params['outsideip']]]
 
 # }}}
 
@@ -303,9 +303,10 @@ class RequestHandlerHost(RequestHandler, RequestHost): # {{{
 
 		user = self._racelist.getUser(params["client_id"])
 		driver = nidhoeggr.Driver(user,params)
-		self._racelist.driverJoinRace(race.server_id,driver)
+		server_id = race.params['server_id']
+		self._racelist.driverJoinRace(server_id,driver)
 
-		return [[race.server_id]]
+		return [[server_id]]
 
 # }}}
 
