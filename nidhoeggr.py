@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.47 2004/03/25 20:19:58 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.48 2004/03/25 21:44:23 ridcully Exp $"
 
 __copyright__ = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -405,7 +405,7 @@ class RLServerList(StopableThread): # {{{
 			self._servers_rwlock.release_read()
 
 	def addRLServer(self,rls):
-		rls_id = server.params['rls_id']
+		rls_id = rls.params['rls_id']
 		self._servers_rwlock.acquire_write()
 		try:
 			if not self.hasRLServer(rls_id):
@@ -480,8 +480,8 @@ class RLServerList(StopableThread): # {{{
 			self._simpleserverlistreply = []
 			self._fullserverlistreply = []
 			for server in self._servers.values():
-				self._simpleserverlistreply.append((server.params['rls_id'], server.params['ip'], server.params['port']))
-				self._fullserverlistreply.append((server.params['rls_id'], server.params['ip'], server.params['port'], server.params['maxload']))
+				self._simpleserverlistreply.append((server.params['rls_id'], server.params['name'], server.params['ip'], server.params['port']))
+				self._fullserverlistreply.append((server.params['rls_id'], server.params['name'], server.params['ip'], server.params['port'], server.params['maxload']))
 		finally:
 			self._servers_rwlock.release_read()
 
@@ -495,35 +495,23 @@ class RLServerList(StopableThread): # {{{
 		self._save()
 
 	def _run(self):
-		if self.client is None:
-			self.register()
 		ct = time.time()
 		self._servers_rwlock.acquire_write()
 		try:
 			for rls_id in self._servers.keys():
 				server = self._servers[rls_id]
 				if server.checkTimeout(ct):
-					log.Log(Log.INFO, "dropping race list server %s (%s:%d) due to a a time out" % (server.params['rls_id'], server.params['name'], server.params['port']))
+					log(Log.INFO, "dropping race list server %s (%s:%d) due to a a time out" % (server.params['rls_id'], server.params['name'], server.params['port']))
 					del self._servers[rls_id]
 		finally:
 			self._servers_rwlock.release_write()
-
+	
 	def getInitServer(self):
 		if len(self._servers):
 			rls = self._servers.values()[0]
-			return (rls.params['name'],rls.params['port'])
+			return (rls.params['name'],int(rls.params['port']))
 		return (config.initserver_name,config.initserver_port)
 
-	def register(self):
-		initserver_name,initserver_port = self.getInitServer()
-		try:
-			client = Client(initserver_name,initserver_port)
-			result = client.doRequest([["rls_register", self._rls_id, config.servername, str(config.racelistport), str(config.server_maxload)]])
-			for row in result:
-				self._serverlist.addRLServer(row)
-		except Exception, e:
-			log(Log.WARNING, "Error on registering to init server: %s" % e)
-	
 # }}}
 
 class Driver: # {{{
@@ -727,6 +715,8 @@ class RaceListServer(SocketServer.ThreadingTCPServer, StopableThread): # {{{
 		self._requests = 0
 		self._lastloadsampletimestamp = time.time()
 
+		self.register()
+
 	def _run(self):
 		(infd,outfd,errfd) = select.select([self.socket], [], [], 1.0) # timout 1s
 		if self.socket in infd:
@@ -752,6 +742,14 @@ class RaceListServer(SocketServer.ThreadingTCPServer, StopableThread): # {{{
 
 		return self._requesthandlers[command].handleRequest([client_address[0]]+request[0])
 
+	def handleDistributedRequest(self, request):
+		log(Log.INFO,"distributed request %s" % (str(request)))
+		command = request[1]
+		if not self._requesthandlers.has_key(command):
+			raise Error(Error.REQUESTERROR, "unknown command")
+		return self._requesthandlers[command].handleDistributedRequest(request)
+
+
 	def calcLoad(self):
 		self._requests = self._requests + 1
 		if self._requests==100:
@@ -760,6 +758,19 @@ class RaceListServer(SocketServer.ThreadingTCPServer, StopableThread): # {{{
 			self._requests = 0
 			self._lastloadsampletimestamp = ct
 			log(Log.INFO,"current load: %s" % self._load)
+
+	def register(self):
+		initserver_name,initserver_port = self._serverlist.getInitServer()
+		log(Log.INFO, "registering to init server %s:%d" % (initserver_name, initserver_port))
+		try:
+			client = Client(initserver_name,initserver_port)
+			result = client.doRequest([["rls_register", self._serverlist._rls_id, config.servername, str(config.racelistport), str(config.server_maxload)]])
+			for row in result:
+				# FIXME: dont use the string of the command here
+				params = [row[2], "rls_register", row[0], row[1], row[3], row[4]]
+				self.handleDistributedRequest(params)
+		except Exception, e:
+			log(Log.WARNING, "Error on registering to init server: %s" % e)
 # }}}
 
 class RaceListServerRequestHandler(SocketServer.StreamRequestHandler, Middleware): # {{{

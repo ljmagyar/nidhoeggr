@@ -347,7 +347,7 @@ class Handler: # {{{
 	def _handleRequest(self,data): pass
 
 	def _handleDistributedReqest(self,data):
-		self._handleDistributedReqest(data)
+		self._handleRequest(data)
 
 # }}}
 
@@ -514,7 +514,7 @@ class HandlerRLSRegister(Handler, RLSRegister): # {{{
 		Handler.__init__(self, server)
 
 	def _handleRequest(self, params):
-		rls = nidhoeggr.RLServerList(params)
+		rls = nidhoeggr.RLServer(params)
 		self._server._serverlist.addRLServer(rls)
 		return self._server._serverlist.getFullServerListAsReply()
 
