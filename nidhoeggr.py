@@ -1,6 +1,6 @@
 #!/usr/bin/env python2.2
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.4 2003/06/08 14:25:57 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.5 2003/06/20 08:12:22 ridcully Exp $"
 
 copyright = """
 Copyright 2003 Christoph Frick <rid@gmx.net>
@@ -20,6 +20,7 @@ import random
 import string
 import threading
 import cPickle
+import re
 
 class Log: # {{{
 	"""
@@ -135,6 +136,7 @@ class RaceList(threading.Thread): # {{{
 		self._stopevent = threading.Event()
 
 		self._users = {}
+		self._usersuniqids = {}
 		self._races = {}
 		self._reqfull = []
 
@@ -150,8 +152,20 @@ class RaceList(threading.Thread): # {{{
 		try:
 			if not self._users.has_key(user.client_id):
 				self._users[user.client_id] = user
+				self._usersuniqids[user.client_uniqid] = user
 			else:
 				raise RaceListProtocolException(400, "user already registered")
+		finally:
+			self._users_rwlock.release_write()
+
+	def removeUser(self,client_id):
+		"""
+		"""
+		self._users_rwlock.acquire_write()
+		try:
+			if self._users.has_key(client_id):
+				del self._users[user]
+				del self._usersuniqids[user]
 		finally:
 			self._users_rwlock.release_write()
 
@@ -171,8 +185,8 @@ class RaceList(threading.Thread): # {{{
 	def getUserByUniqId(self,client_uniqid):
 		"""
 		"""
-		if self._users.has_key(client_uniqid):
-			return self._users[client_uniqid]
+		if self._usersuniqids.has_key(client_uniqid):
+			return self._usersuniqids[client_uniqid]
 		return None
 
 	def addRace(self,race):
@@ -188,12 +202,14 @@ class RaceList(threading.Thread): # {{{
 		finally:
 			self._races_rwlock.release_write()
 
-	def removeRace(self,server_id):
+	def removeRace(self,server_id,client_id):
 		"""
 		"""
 		self._races_rwlock.acquire_write()
 		try:
 			if self._races.has_key(server_id):
+				if self._races[server_id].client_id!=client_id:
+					raise RaceListProtocolException(401, "authorization required")
 				del self._races[server_id]
 			else:
 				raise RaceListProtocolException(404, "unknown server_id")
@@ -254,17 +270,17 @@ class RaceList(threading.Thread): # {{{
 		lurks behind the scenes and cleans the._races and the._users
 		"""
 		while not self._stopevent.isSet():
-			for user in self._users.keys():
-				if self._users[user].checkTimeout():
+			for client_id in self._users.keys():
+				if self._users[client_id].checkTimeout():
 					if __debug__:
 						log(Log.DEBUG, "removing user %s" % user )
-					del self._users[user]
+					self.removeUser(client_id)
 
-			for race in self._races.keys():
-				if self._races[race].checkTimeout() and self._races[race].ip != "68.46.13.18": # FIXME: this is a hack for guru to have one race to test
+			for server_id in self._races.keys():
+				if self._races[server_id].checkTimeout() and self._races[server_id].ip != "68.46.13.18": # FIXME: this is a hack for guru to have one race to test
 					if __debug__:
 						log(Log.DEBUG, "removing race %s" % race )
-					self.removeRace(self._races[race].server_id)
+					self.removeRace(server_id, self._races[server_id].client_id)
 
 			self._stopevent.wait(RaceList.CLEANINTERVAL)
 
@@ -301,7 +317,7 @@ class RaceList(threading.Thread): # {{{
 			inf.close()
 			self._users = {}
 			for user in self._users.values():
-				self._users[user.client_uniqid] = user
+				self._usersuniqids[user.client_uniqid] = user
 		except Exception,e:
 			log(Log.WARNING, "failed to load racelist state from file '%s': %s" % (filename, e) )
 		self._buildRaceListAsReply()
@@ -509,12 +525,11 @@ class RaceListRequestHandler: # {{{
 	"""
 	PROTOCOL_VERSION="scary v0.1"
 
-	def __init__(self,racelistserver,name,paramconfig,resultdescription):
+	def __init__(self,racelistserver,name,paramconfig):
 		"""
 		"""
 		self.name = name
 		self.paramconfig = paramconfig
-		self.resultdescription = resultdescription
 		self._racelistserver = racelistserver
 		self._racelist = racelistserver._racelist
 		self._keys = []
@@ -631,17 +646,15 @@ class RaceListRequestHandlerLogin(RaceListRequestHandler): # {{{
 	"""
 	"""
 	def __init__(self,racelistserver):
-		"""
-		"""
+		"""Login of the client/user onto the server. This command must be called before all others. This command will assure, that client and server speak the same version of the protocol."""
 		RaceListRequestHandler.__init__(self, racelistserver, "login", [
 			"protocol_version:string",
 			"client_version:string",
 			"client_uniqid:string"
-		], 'protocol version, server version, client id for further requests, ip the connection came from')
+		])
 
 	def _handleRequest(self,client_address,params):
-		"""
-		"""
+		"""The reply contains 4 cells: protocol version, server version, client id for further requests, ip the connection came from"""
 		if params["protocol_version"]!=self.PROTOCOL_VERSION:
 			if __debug__:
 				raise RaceListProtocolException(400, "wrong protcol version - expected '%s'"%self.PROTOCOL_VERSION)
@@ -661,8 +674,7 @@ class RaceListRequestHandlerHost(RaceListRequestHandler): # {{{
 	"""
 	"""
 	def __init__(self, racelistserver):
-		"""
-		"""
+		"""Starts hosting of a race. The given informations are used to describe the race and will be displayed in the same order in the racelist."""
 		RaceListRequestHandler.__init__(self, racelistserver, "host", [
 			"client_id:string", 
 			"ip:ip", 
@@ -685,11 +697,10 @@ class RaceListRequestHandlerHost(RaceListRequestHandler): # {{{
 			"trackdir:string", 
 			"racetype:suint", 
 			"praclength:suint"
-		], 'created server id for the race')
+		])
 
 	def _handleRequest(self,client_address,params):
-		"""
-		"""
+		"""A unique id for the server, that will be used to update the hosting and race informations and also by the clients to join/leave the race."""
 		self._racelist.getUser(params["client_id"])
 		race = Race(params)
 		self._racelist.addRace(race)
@@ -701,15 +712,13 @@ class RaceListRequestHandlerReqFull(RaceListRequestHandler): # {{{
 	"""
 	"""
 	def __init__(self, racelistserver):
-		"""
-		"""
+		"""Returns a list of races and the drivers in this races."""
 		RaceListRequestHandler.__init__(self, racelistserver, "req_full", [
 			"client_id:string"
-		], 'racelist in the following form: each like starting with R is a race - the following lines starting with D are the drivers')
+		])
 
 	def _handleRequest(self,client_address,params):
-		"""
-		"""
+		"""Racelist in the following form: each line starting with R is a race - the following lines starting with D are the drivers."""
 		user = self._racelist.getUser(params["client_id"])
 		user.setActive()
 		return self._racelist.getRaceListAsReply()
@@ -720,8 +729,7 @@ class RaceListRequestHandlerJoin(RaceListRequestHandler): # {{{
 	"""
 	"""
 	def __init__(self, racelistserver):
-		"""
-		"""
+		"""The client with the given id joins the server with the given id. Several informations about the driver itself are also submited for the list of races and their drivers."""
 		RaceListRequestHandler.__init__(self, racelistserver, "join", [
 			"server_id:string", 
 			"client_id:string", 
@@ -732,11 +740,10 @@ class RaceListRequestHandlerJoin(RaceListRequestHandler): # {{{
 			"mod_id:string", 
 			"nationality:suint", 
 			"helmet_colour:suint"
-		], 'void')
+		])
 
 	def _handleRequest(self,client_address,params):
-		"""
-		"""
+		"""Nothing."""
 		user = self._racelist.getUser(params["client_id"])
 		driver = Driver(user,params)
 		self._racelist.driverJoinRace(params["server_id"],driver)
@@ -748,16 +755,14 @@ class RaceListRequestHandlerLeave(RaceListRequestHandler): # {{{
 	"""
 	"""
 	def __init__(self, racelistserver):
-		"""
-		"""
+		"""Removes the client with the given id from the server with the given id."""
 		RaceListRequestHandler.__init__(self, racelistserver, "leave", [
 			"server_id:string", 
 			"client_id:string"
-		], 'void')
+		])
 
 	def _handleRequest(self,client_address,params):
-		"""
-		"""
+		"""Nothing."""
 		self._racelist.driverLeaveRace(params["server_id"], params["client_id"])
 		return [[]]
 
@@ -767,17 +772,15 @@ class RaceListRequestHandlerEndHost(RaceListRequestHandler): # {{{
 	"""
 	"""
 	def __init__(self, racelistserver):
-		"""
-		"""
+		"""Stops the hosting of the race with the given id."""
 		RaceListRequestHandler.__init__(self, racelistserver, "endhost", [
 			"server_id:string",
 			"client_id:string"
-		], 'void')
+		])
 
 	def _handleRequest(self,client_address,params):
-		"""
-		"""
-		self._racelist.removeRace(params["server_id"])
+		"""Nothing."""
+		self._racelist.removeRace(params["server_id"], params["client_address"])
 		return [[]]
 
 # }}}
@@ -786,15 +789,13 @@ class RaceListRequestHandlerReport(RaceListRequestHandler): # {{{
 	"""
 	"""
 	def __init__(self, racelistserver):
-		"""
-		"""
+		"""Updates the informations of the given server."""
 		RaceListRequestHandler.__init__(self, racelistserver, "report", [
 			"server_id:string"
-		], 'void')
+		])
 
 	def _handleRequest(self,client_address,params):
-		"""
-		"""
+		"""Nothing."""
 		# TODO
 		raise RaceListProtocolException(501, "not yet implemented")
 
@@ -804,13 +805,11 @@ class RaceListRequestHandlerCopyright(RaceListRequestHandler): # {{{
 	"""
 	"""
 	def __init__(self, racelistserver):
-		"""
-		"""
-		RaceListRequestHandler.__init__(self, racelistserver, "copyright", [], 'copyright notice')
+		"""Returns a copyright notice about the protocol and the server."""
+		RaceListRequestHandler.__init__(self, racelistserver, "copyright", [])
 
 	def _handleRequest(self,client_address,params):
-		"""
-		"""
+		"""String holding the text of the copyright notice."""
 		return [[copyright]]
 
 # }}}
@@ -819,19 +818,20 @@ class RaceListRequestHandlerHelp(RaceListRequestHandler): # {{{
 	"""
 	"""
 	def __init__(self, racelistserver):
-		"""
-		"""
-		RaceListRequestHandler.__init__(self, racelistserver, "help", [], 'for each command a line starting with command, then followed by a line for each param and finally a line starting with result, explaining the data sent back to the client')
+		"""Returns a list of all implemented commands."""
+		RaceListRequestHandler.__init__(self, racelistserver, "help", [])
 
 	def _handleRequest(self,client_address,params):
-		"""
-		"""
+		"""For each command a line starting with command, then followed by a line for each param and finally a line starting with result, explaining the data sent back to the client."""
 		ret = []
-		for rh in self._racelistserver._requesthandlers.values():
+		rhs = self._racelistserver._requesthandlers.values()
+		rhs.sort()
+		for rh in rhs:
 			ret.append(['command', rh.name])
+			ret.append(['description', rh.__init__.__doc__])
 			for pc in rh.paramconfig:
-				ret.append(['param', pc])
-			ret.append(['result', rh.resultdescription])
+				ret.append(['parameter', pc])
+			ret.append(['result', rh._handleRequest.__doc__])
 		return ret
 
 # }}}
@@ -853,8 +853,8 @@ class RaceListServer(SocketServer.ThreadingTCPServer): # {{{
 
 		self._requesthandlers = {}
 		self._addRequestHandler(RaceListRequestHandlerLogin(self))
-		self._addRequestHandler(RaceListRequestHandlerHost(self))
 		self._addRequestHandler(RaceListRequestHandlerReqFull(self))
+		self._addRequestHandler(RaceListRequestHandlerHost(self))
 		self._addRequestHandler(RaceListRequestHandlerJoin(self))
 		self._addRequestHandler(RaceListRequestHandlerLeave(self))
 		self._addRequestHandler(RaceListRequestHandlerEndHost(self))
@@ -1023,14 +1023,28 @@ class RaceListServer(SocketServer.ThreadingTCPServer): # {{{
 					],'\001')
 				)
 			)
-			log(
-				Log.DEBUG, self.handleRequest(
-					('127.0.0.1',1024),
-					string.join([
-						"help"
-					],'\001')
-				)
-			)
+			fw = open('commanddoku.tex','w')
+			fw.write( '\\section{Commands}\n\n' )
+			for row in self.handleRequest(('127.0.0.1',1024), string.join([ "help" ],'\001')):
+				if row[0]=='command':
+					fw.write( '\\subsection{%s}\n\n' % re.sub(r'_',r'\\_',row[1]) )
+					fw.write( '\\begin{description}\n' )
+				elif row[0]=='description':
+					fw.write( '\\item {\\it Description:}\\\\\n%s\n' % re.sub(r'_',r'\\_',row[1]) )
+					fw.write( '\\item {\\it Parmameters:}\n' )
+					fw.write( '\\begin{itemize}\n' )
+					paramcount = 0
+				elif row[0]=='parameter':
+					fw.write( '\\item %s\n' % re.sub(r'_',r'\\_',row[1]) )
+					paramcount = paramcount + 1
+				elif row[0]=='result':
+					if not paramcount:
+						fw.write( '\\item None\n' )
+					fw.write( '\\end{itemize}\n' )
+					fw.write( '\\item {\\it Result:}\\\\\n%s\n' % re.sub(r'_',r'\\_',row[1]) )
+					fw.write( '\\end{description}\n\n' )
+			fw.close()
+			
 		# }}}
 
 	def _addRequestHandler(self,handler):
@@ -1077,9 +1091,17 @@ class RaceListServerRequestHandler(SocketServer.StreamRequestHandler): # {{{
 			result = self.server.handleRequest(self.client_address,data)
 			self.sendResult([200,'OK'],result)
 		except RaceListProtocolException, e:
+			# racelist errors are logged and sent to the client
 			log(Log.ERROR,e)
 			self.sendError(e)
+		except IOError, e:
+			# something went wrong with the connection - we cant
+			# help here just log and bailout
+			log(Log.ERROR, e)
 		except Exception, e:
+			# this are error that should not be - try to send an
+			# error to the client, that something went wrong and
+			# re-raise the exception again
 			self.sendError(RaceListProtocolException(500, "internal server error"))
 			raise
 
