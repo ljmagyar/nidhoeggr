@@ -6,7 +6,7 @@ from tools import log, Log
 import paramchecks
 
 DEFAULT_RACELISTPORT=30197
-DEFAULT_BROADCASTPORT=6970
+DEFAULT_BROADCASTPORT=30199
 
 class ConfigVariable:
 	def __init__(self, key, default, check):
