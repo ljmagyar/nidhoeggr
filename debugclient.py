@@ -24,7 +24,24 @@ def getLastName():
 			'Flack'
 	])
 
-c = nidhoeggr.Client('Dummy %f' % (random()),'ridcully.mine.nu')
+def getMod():
+	return choice([
+			'gpl',
+			'gpl1955',
+			'gpl1965'
+	])
+
+def getTrack():
+	return choice([
+			'monza',
+			'rouen',
+			'pants',
+			'nurburg',
+			'wglen',
+			'thereisnosuchtrack'
+	])
+
+c = nidhoeggr.Client('Dummy %f' % (random()),'localhost')
 r = nidhoeggr.RequestSender(c, [[
 			"host", 
 			c.client_id,
@@ -40,11 +57,11 @@ r = nidhoeggr.RequestSender(c, [[
 			'1111111',
 			'111',
 			'0',
-			'gpl1965',
+			getMod(),
 			'0',
 			'1,1,1,1',
 			'20',
-			'monza',
+			getTrack(),
 			'1',
 			'900',
 			'4',
@@ -53,25 +70,25 @@ r = nidhoeggr.RequestSender(c, [[
 			'',
 			getFirstName(),
 			getLastName(),
-			'1',
-			'1',
+			str(randint(0,6)),
+			str(randint(1,3)),
 			'gpl1965',
-			str(randint(0,100)),
-			str(randint(0,100))
+			str(randint(0,28)),
+			str(randint(0,15))
 		]])
 for i in range(randint(1,10)):
-	c = nidhoeggr.Client('Dummy %f' % (random()),'ridcully.mine.nu')	
+	c = nidhoeggr.Client('Dummy %f' % (random()),'localhost')	
 	j = nidhoeggr.RequestSender(c,[[
 			'join',
 			r.result[0][0],
 			c.client_id,
 			getFirstName(),
 			getLastName(),
-			'1',
-			'1',
-			'gpl1965',
-			str(randint(0,100)),
-			str(randint(0,100))
+			str(randint(0,6)),
+			str(randint(1,3)),
+			getMod(),
+			str(randint(0,28)),
+			str(randint(0,15))
 	]])
 
 f = nidhoeggr.RequestSender(c,[['req_full',c.client_id]])
