@@ -131,7 +131,7 @@ if __name__=="__main__":
 	if len(argv)==2:
 		servername = argv[1]
 	if len(argv)==3:
-		serverport = string.atoi(argv[2])
+		serverport = int(argv[2])
 	dc = DebugClient(servername, serverport)
 	dc.run()
 
