@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.2
+#!/usr/bin/env python
 
 from random import random, choice, randint
 from sys import argv
@@ -92,7 +92,7 @@ class DebugClient:
 						getLastName(),
 						str(randint(1,3)),
 						str(randint(0,6)),
-						'gpl1965',
+						getMod(),
 						str(randint(0,28)),
 						str(randint(0,15))
 					]])

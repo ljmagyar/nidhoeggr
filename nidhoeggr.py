@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.31 2004/01/01 19:11:57 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.32 2004/01/25 16:46:47 ridcully Exp $"
 
 DEFAULT_RACELISTPORT=30197
 DEFAULT_BROADCASTPORT=6970
@@ -550,7 +550,7 @@ class Middleware: # {{{
 	MODE_COMPRESS="c"
 	MODE_CLEARTEXT="t"
 	COMPRESS_MIN_LEN = 1024
-	COMPRESSIONLEVEL = 5
+	COMPRESSIONLEVEL = 3
 	MAXSIZE=1024*1024
 	CELLSEPARATOR="\001"
 	ROWSEPARATOR="\002"
