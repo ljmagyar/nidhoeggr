@@ -3,6 +3,7 @@
 import sys
 import signal
 import getopt
+import time
 
 from config import config
 from tools import log, Log
@@ -50,12 +51,20 @@ def main(argv=None):
 	# fire up the server
 	global server
 	server = nidhoeggr.Server()
+
 	# set the signals the server listens on for the shutdown
-	if hasattr(signal, "SIGINT"):
-		signal.signal(signal.SIGINT, handle_shutdown)
-	if hasattr(signal, "SIGTERM"):
-		signal.signal(signal.SIGTERM, handle_shutdown)
+	signals = ( 'SIGHUP', 'SIGINT', 'SIGKILL', 'SIGPIPE', 'SIGALRM', 'SIGTERM', 'SIGUSR1', 'SIGUSR2' )
+	for sgn in signals:
+		if hasattr(signal, sgn):
+			log(Log.INFO, "listening for signal '%s' for shutdown" % sgn)
+			signal.signal(getattr(signal,sgn), handle_shutdown)
+
+	# start the server and loop ad infiniti
 	server.start()
+	try: 
+		while 1: time.sleep(1)
+	except KeyboardInterrupt: 
+		handle_shutdown()
 
 if __name__=="__main__":
 	sys.exit(main())
