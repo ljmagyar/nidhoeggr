@@ -12,26 +12,22 @@ def check_string(value):
 	return None
 
 def check_boolean(value):
-	"""
-	"""
-	try:
-		bool = string.atoi(value)
-		if not 0 <= bool <= 1:
-			return "value is not boolean (0 or 1)"
-	except:
-		return "value is not boolean (0 or 1)"
-	return None
+	return __intrangecheck(value,0,1)
 
 def check_suint(value):
-	"""
-	"""
-	try:
-		suint = string.atoi(value)
-		if not 0 <= suint <= 65535:
-			return "value is no small unsigned integer"
-	except:
-		return "value is no small unsigned integer"
-	return None
+	return __intrangecheck(value,0,65535)
+
+def check_team(value):
+	return __intrangecheck(value,0,6)
+
+def check_helmetcolour(value):
+	return __intrangecheck(value,0,15)
+
+def check_nationality(value):
+	return __intrangecheck(value,0,28)
+
+def check_class(value):
+	return __intrangecheck(value,1,3)
 
 def check_chassisbitfield(value):
 	"""
@@ -42,16 +38,6 @@ def check_carclassbitfield(value):
 	"""
 	"""
 	return __bitfieldcheck(3,value)
-
-def __bitfieldcheck(length,value):
-	"""
-	"""
-	if len(value)!=length:
-		return "lenght must be 7 chars"
-	for x in value:
-		if not (x=='0' or x=='1'):
-			return "only 1 and 0 chars are allowed"
-	return None
 
 def check_bandwidthfield(value):
 	"""
@@ -79,5 +65,26 @@ def check_ip(value):
 				return "expect 4 numbers between 0 and 255 separated with a dot"
 	except:
 		return "expect 4 numbers between 0 and 255 separated with a dot"
+	return None
+
+def __intrangecheck(value, min, max):
+	"""
+	"""
+	try:
+		i = string.atoi(value)
+		if not min <= i <= max:
+			return "value is not in valid range (%d-%d)" % (min,max)
+	except:
+		return "value is not boolean (0 or 1)"
+	return None
+
+def __bitfieldcheck(length,value):
+	"""
+	"""
+	if len(value)!=length:
+		return "lenght must be 7 chars"
+	for x in value:
+		if not (x=='0' or x=='1'):
+			return "only 1 and 0 chars are allowed"
 	return None
 

@@ -73,11 +73,11 @@ class RequestHost(Request): # {{{
 				RequestParam("flags", paramchecks.check_string, ""),
 				RequestParam("firstname", paramchecks.check_string, ""), 
 				RequestParam("lastname", paramchecks.check_string, ""), 
-				RequestParam("class_id", paramchecks.check_suint, ""), 
-				RequestParam("team_id", paramchecks.check_suint, ""), 
+				RequestParam("class_id", paramchecks.check_class, ""), 
+				RequestParam("team_id", paramchecks.check_team, ""), 
 				RequestParam("mod_id", paramchecks.check_string, ""), 
-				RequestParam("nationality", paramchecks.check_suint, ""), 
-				RequestParam("helmet_colour", paramchecks.check_suint, "")
+				RequestParam("nationality", paramchecks.check_nationality, ""), 
+				RequestParam("helmet_colour", paramchecks.check_helmetcolour, "")
 			],
 			"""Starts hosting of a race. The given informations are used to describe the race and will be displayed in the same order in the racelist.""",
 			"""A unique id for the server, that will be used to update the hosting and race informations and also by the clients to join/leave the race."""
@@ -156,11 +156,11 @@ class RequestJoin(Request): # {{{
 				RequestParam("client_id", paramchecks.check_string, ""), 
 				RequestParam("firstname", paramchecks.check_string, ""), 
 				RequestParam("lastname", paramchecks.check_string, ""), 
-				RequestParam("class_id", paramchecks.check_suint, ""), 
-				RequestParam("team_id", paramchecks.check_suint, ""), 
+				RequestParam("class_id", paramchecks.check_class, ""), 
+				RequestParam("team_id", paramchecks.check_team, ""), 
 				RequestParam("mod_id", paramchecks.check_string, ""), 
-				RequestParam("nationality", paramchecks.check_suint, ""), 
-				RequestParam("helmet_colour", paramchecks.check_suint, "")
+				RequestParam("nationality", paramchecks.check_nationality, ""), 
+				RequestParam("helmet_colour", paramchecks.check_helmetcolour, "")
 			],
 			"""The client with the given id joins the server with the given id. Several informations about the driver itself are also submited for the list of races and their drivers.""",
 			"""Nothing."""
