@@ -70,8 +70,8 @@ r = nidhoeggr.RequestSender(c, [[
 			'',
 			getFirstName(),
 			getLastName(),
-			str(randint(0,6)),
 			str(randint(1,3)),
+			str(randint(0,6)),
 			'gpl1965',
 			str(randint(0,28)),
 			str(randint(0,15))
@@ -84,16 +84,17 @@ for i in range(randint(1,10)):
 			c.client_id,
 			getFirstName(),
 			getLastName(),
-			str(randint(0,6)),
 			str(randint(1,3)),
+			str(randint(0,6)),
 			getMod(),
 			str(randint(0,28)),
 			str(randint(0,15))
 	]])
 
+def test(bool,ontrue,onfalse):
+	if bool: return ontrue
+	return onfalse
+
 f = nidhoeggr.RequestSender(c,[['req_full',c.client_id]])
 for row in f.result:
-	if row[0]=='R':
-		print row[1]
-	else:
-		print "\t"+str(row)
+	print test(row[0]=='D', "\t", "")+str(row)
