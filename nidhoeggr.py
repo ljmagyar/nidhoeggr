@@ -1,6 +1,6 @@
 #!/usr/bin/env python2.2
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.7 2003/06/20 12:46:05 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.8 2003/06/23 17:27:05 ridcully Exp $"
 
 copyright = """
 Copyright 2003 Christoph Frick <rid@gmx.net>
@@ -164,8 +164,8 @@ class RaceList(threading.Thread): # {{{
 		self._users_rwlock.acquire_write()
 		try:
 			if self._users.has_key(client_id):
+				del self._usersuniqids[self._users[client_id].client_uniqid]
 				del self._users[client_id]
-				del self._usersuniqids[client_id]
 		finally:
 			self._users_rwlock.release_write()
 
