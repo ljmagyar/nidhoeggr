@@ -50,8 +50,10 @@ class ReadWriteLock: # {{{
 		"""
 		"""
 		self._read_ready.acquire()
-		try: self._readers += 1
-		finally: self._read_ready.release()
+		try: 
+			self._readers += 1
+		finally: 
+			self._read_ready.release()
 
 	def release_read(self):
 		"""
