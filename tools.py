@@ -88,18 +88,18 @@ class IdleWatcher: # {{{
 	def __init__(self,timeout):
 		"""
 		"""
-		self.timeout = timeout
+		self._timeout = timeout
 		self.setActive()
 	
 	def setActive(self):
 		"""
 		"""
-		self.lastactivity = time.time()
+		self._lastactivity = time.time()
 
 	def checkTimeout(self,currenttime=time.time()):
 		"""
 		"""
-		return self.lastactivity + self.timeout < currenttime
+		return self._lastactivity + self._timeout < currenttime
 
 # IdleWatcher }}}
 

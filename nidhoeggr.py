@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.27 2003/11/12 22:15:55 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.28 2003/11/16 15:10:47 ridcully Exp $"
 
 DEFAULT_RACELISTPORT=27233
 DEFAULT_BROADCASTPORT=6970
@@ -41,6 +41,10 @@ class RaceList(tools.StopableThread): # {{{
 
 	CLEANINTERVAL = 60.0 # seconds
 
+	STATE_START = 1
+	STATE_RUN = 2
+	STATE_STOP = 3
+
 	def __init__(self):
 		"""
 		"""
@@ -51,6 +55,8 @@ class RaceList(tools.StopableThread): # {{{
 		self._races = {}
 		self._racesbroadcasts = {}
 		self._reqfull = []
+
+		self.__state = RaceList.STATE_START
 
 		self._users_rwlock = tools.ReadWriteLock()
 		self._races_rwlock = tools.ReadWriteLock()
@@ -195,6 +201,8 @@ class RaceList(tools.StopableThread): # {{{
 		"""
 		lurks behind the scenes and cleans the._races and the._users
 		"""
+		if self.__state <> RaceList.STATE_RUN: 
+			return
 		currenttime = time.time()
 		usercount = 0
 		userdelcount = 0
@@ -223,6 +231,8 @@ class RaceList(tools.StopableThread): # {{{
 		stores the current racelist in the given file
 		"""
 		log(Log.INFO, "store racelist to file '%s'" % filename )
+		self.__state = RaceList.STATE_STOP
+		self._users_rwlock.acquire_write()
 		self._races_rwlock.acquire_write()
 		try:
 			outf = open(filename, "w")
@@ -239,15 +249,22 @@ class RaceList(tools.StopableThread): # {{{
 		log(Log.INFO, "load racelist from file '%s'" % filename )
 		try:
 			inf = open(filename, "r")
-			self._users = cPickle.load(inf)
-			self._races = cPickle.load(inf)
-			inf.close()
-			self._users = {}
+			self._users_rwlock.acquire_write()
+			self._races_rwlock.acquire_write()
+			try:
+				self._users = cPickle.load(inf)
+				self._races = cPickle.load(inf)
+			finally:
+				self._users_rwlock.release_write()
+				self._races_rwlock.release_write()
+			self._usersuniqids = {}
 			for user in self._users.values():
 				self._usersuniqids[user.client_uniqid] = user
+			inf.close()
 		except Exception,e:
 			log(Log.WARNING, "failed to load racelist state from file '%s': %s" % (filename, e) )
 		self._buildRaceListAsReply()
+		self.__state = RaceList.STATE_RUN
 
 # }}}
 
@@ -281,79 +298,63 @@ class Race(tools.IdleWatcher): # {{{
 	def addDriver(self,driver):
 		"""
 		"""
-		self._rwlock.acquire_write()
-		self.setActive()
-		try:
-			if not self.drivers.has_key(driver.client_id):
-				self.drivers[driver.client_id] = driver
-			# silently ignore the request, if this driver has already joined the race
-		finally:
-			self._rwlock.release_write()
+		if not self.drivers.has_key(driver.client_id):
+			self.setActive()
+			self.drivers[driver.client_id] = driver
+		# silently ignore the request, if this driver has already joined the race
 
 	def removeDriver(self,client_id):
 		"""
 		"""
-		self._rwlock.acquire_write()
-		self.setActive()
-		try:
-			if self.drivers.has_key(client_id):
-				del self.drivers[client_id]
-			# silently ignore the request, if there is no driver with this id in the race
-		finally:
-			self._rwlock.release_write()
+		if self.drivers.has_key(client_id):
+			self.setActive()
+			del self.drivers[client_id]
+		# silently ignore the request, if there is no driver with this id in the race
 			
 	def updateRaceViaBroadcast(self, players, maxplayers, trackdir, sessiontype, sessionleft):
 		"""
 		"""
-		self._rwlock.acquire_write()
 		self.setActive()
-		try:
-			self.players     = players
-			self.maxplayers  = maxplayers
-			self.trackdir    = trackdir
-			self.sessiontype = sessiontype
-			self.sessionleft = sessionleft
-		finally:
-			self._rwlock.release_write()
+		self.players     = players
+		self.maxplayers  = maxplayers
+		self.trackdir    = trackdir
+		self.sessiontype = sessiontype
+		self.sessionleft = sessionleft
 
 	def getRaceAsReply(self):
 		"""
 		"""
-		self._rwlock.acquire_read()
-		try:
-			ret = (
-				"R",
-				str(self.server_id),
-				str(self.ip),
-				str(self.joinport),
-				str(self.name),
-				str(self.info1),
-				str(self.info2),
-				str(self.comment),
-				str(self.isdedicatedserver),
-				str(self.ispassworded),
-				str(self.isbosspassworded),
-				str(self.isauthenticedserver),
-				str(self.allowedchassis),
-				str(self.allowedcarclasses),
-				str(self.allowsengineswapping),
-				str(self.modindent),
-				str(self.maxlatency),
-				str(self.bandwidth),
-				str(self.players),
-				str(self.maxplayers),
-				str(self.trackdir),
-				str(self.racetype),
-				str(self.praclength),
-				str(self.sessiontype),
-				str(self.sessionleft),
-				str(self.aiplayers),
-				str(self.numraces),
-				str(self.repeatcount),
-				str(self.flags)
-			)
-		finally:
-			self._rwlock.release_read()
+		ret = (
+			"R",
+			str(self.server_id),
+			str(self.ip),
+			str(self.joinport),
+			str(self.name),
+			str(self.info1),
+			str(self.info2),
+			str(self.comment),
+			str(self.isdedicatedserver),
+			str(self.ispassworded),
+			str(self.isbosspassworded),
+			str(self.isauthenticedserver),
+			str(self.allowedchassis),
+			str(self.allowedcarclasses),
+			str(self.allowsengineswapping),
+			str(self.modindent),
+			str(self.maxlatency),
+			str(self.bandwidth),
+			str(self.players),
+			str(self.maxplayers),
+			str(self.trackdir),
+			str(self.racetype),
+			str(self.praclength),
+			str(self.sessiontype),
+			str(self.sessionleft),
+			str(self.aiplayers),
+			str(self.numraces),
+			str(self.repeatcount),
+			str(self.flags)
+		)
 		return ret
 
 	def __getattr__(self,name):
@@ -408,41 +409,32 @@ class Driver: # {{{
 
 		self._initstateless()
 
-	def _initstateless(self):
-		self._rwlock = tools.ReadWriteLock()
+	def _initstateless(self):pass
 	
 	def getDriverAsReply(self):
-		self._rwlock.acquire_read()
-		try:
-			ret = (
-				"D",
-				str(self.firstname),
-				str(self.lastname),
-				str(self.class_id),
-				str(self.team_id),
-				str(self.mod_id),
-				str(self.nationality),
-				str(self.helmet_colour),
-				str(self.qualifying_time),
-				str(self.race_position),
-				str(self.race_laps),
-				str(self.race_notes)
-			)
-		finally:
-			self._rwlock.release_read()
+		ret = (
+			"D",
+			str(self.firstname),
+			str(self.lastname),
+			str(self.class_id),
+			str(self.team_id),
+			str(self.mod_id),
+			str(self.nationality),
+			str(self.helmet_colour),
+			str(self.qualifying_time),
+			str(self.race_position),
+			str(self.race_laps),
+			str(self.race_notes)
+		)
 		return ret
 
 	def updateDriverInfos(self, params):
 		"""
 		"""
-		self._rwlock.acquire_write()
-		try:
-			self.params["qualifying_time"] = params["qualifying_time"]
-			self.params["race_position"]   = params["race_position"]
-			self.params["race_laps"]       = params["race_laps"]
-			self.params["race_notes"]      = params["race_notes"]
-		finally:
-			self._rwlock.release_write()
+		self.params["qualifying_time"] = params["qualifying_time"]
+		self.params["race_position"]   = params["race_position"]
+		self.params["race_laps"]       = params["race_laps"]
+		self.params["race_notes"]      = params["race_notes"]
 
 	def __getattr__(self, name):
 		"""
