@@ -8,6 +8,9 @@ import nidhoeggr
 
 def handle_shutdown(signal,frame):
 	global server
+	if server.inShutdown():
+		print >>sys.stderr, "shutdown already in progress"
+		return
 	server.stop()
 	sys.exit(0)
 
@@ -49,7 +52,7 @@ def main(argv=None):
 		print >>sys.stderr, "For help use -h"
 		return 2
 	
-	global server 
+	global server
 	server = nidhoeggr.Server(racelistport,broadcastport)
 	signal.signal(signal.SIGINT, handle_shutdown)
 	signal.signal(signal.SIGTERM, handle_shutdown)

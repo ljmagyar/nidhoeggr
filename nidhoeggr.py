@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.26 2003/11/09 16:02:25 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.27 2003/11/12 22:15:55 ridcully Exp $"
 
 DEFAULT_RACELISTPORT=27233
 DEFAULT_BROADCASTPORT=6970
@@ -195,23 +195,35 @@ class RaceList(tools.StopableThread): # {{{
 		"""
 		lurks behind the scenes and cleans the._races and the._users
 		"""
+		currenttime = time.time()
+		usercount = 0
+		userdelcount = 0
+		racecount = 0
+		racedelcount = 0
 		for client_id in self._users.keys():
-			if self._users[client_id].checkTimeout():
+			usercount = usercount + 1
+			if self._users[client_id].checkTimeout(currenttime):
 				if __debug__:
 					log(Log.DEBUG, "removing user %s" % client_id )
+				userdelcount = userdelcount + 1
 				self.removeUser(client_id)
 
 		for server_id in self._races.keys():
-			if self._races[server_id].checkTimeout():
+			racecount = racecount + 1
+			if self._races[server_id].checkTimeout(currenttime):
 				if __debug__:
 					log(Log.DEBUG, "removing race %s" % server_id )
+				racedelcount = racedelcount + 1
 				self.removeRace(server_id, self._races[server_id].client_id)
+
+		log(log.INFO, "cleanup: %d/%d users; %d/%d races" % (userdelcount,usercount,racedelcount,racecount))
 
 	def _join(self,filename='racelist.cpickle'):
 		"""
 		stores the current racelist in the given file
 		"""
 		log(Log.INFO, "store racelist to file '%s'" % filename )
+		self._races_rwlock.acquire_write()
 		try:
 			outf = open(filename, "w")
 			cPickle.dump(self._users, outf, 1 )
@@ -491,6 +503,8 @@ class Server(SocketServer.ThreadingTCPServer): # {{{
 		self._addRequestHandler(request.RequestHandlerCopyright(self))
 		self._addRequestHandler(request.RequestHandlerHelp(self))
 
+		self.inshutdown = 0
+
 	def _addRequestHandler(self,handler):
 		"""
 		"""
@@ -521,10 +535,14 @@ class Server(SocketServer.ThreadingTCPServer): # {{{
 		"""
 		"""
 		log(Log.INFO,"shutting down server");
+		self.inshutdown = 1
 		log(Log.INFO,"waiting for broadcast server");
 		self._broadcastserver.join()
 		log(Log.INFO,"waiting for racelist");
 		self._racelist.join()
+
+	def inShutdown(self):
+		return self.inshutdown!=0
 
 # }}}
 

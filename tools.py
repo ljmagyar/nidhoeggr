@@ -96,10 +96,10 @@ class IdleWatcher: # {{{
 		"""
 		self.lastactivity = time.time()
 
-	def checkTimeout(self):
+	def checkTimeout(self,currenttime=time.time()):
 		"""
 		"""
-		return self.lastactivity + self.timeout < time.time()
+		return self.lastactivity + self.timeout < currenttime
 
 # IdleWatcher }}}
 
@@ -132,3 +132,4 @@ class StopableThread(threading.Thread): # {{{
 
 # }}}
 
+# vim:fdm=marker

@@ -74,3 +74,4 @@ def __bitfieldcheck(length,value):
 			return "only 1 and 0 chars are allowed"
 	return None
 
+# vim:fdm=marker
