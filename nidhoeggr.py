@@ -1,6 +1,6 @@
 #!/usr/bin/env python2.2
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.5 2003/06/20 08:12:22 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.6 2003/06/20 09:53:41 ridcully Exp $"
 
 copyright = """
 Copyright 2003 Christoph Frick <rid@gmx.net>
@@ -273,13 +273,13 @@ class RaceList(threading.Thread): # {{{
 			for client_id in self._users.keys():
 				if self._users[client_id].checkTimeout():
 					if __debug__:
-						log(Log.DEBUG, "removing user %s" % user )
+						log(Log.DEBUG, "removing user %s" % client_id )
 					self.removeUser(client_id)
 
 			for server_id in self._races.keys():
 				if self._races[server_id].checkTimeout() and self._races[server_id].ip != "68.46.13.18": # FIXME: this is a hack for guru to have one race to test
 					if __debug__:
-						log(Log.DEBUG, "removing race %s" % race )
+						log(Log.DEBUG, "removing race %s" % server_id )
 					self.removeRace(server_id, self._races[server_id].client_id)
 
 			self._stopevent.wait(RaceList.CLEANINTERVAL)
