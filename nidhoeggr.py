@@ -4,16 +4,16 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.44 2004/03/09 22:30:04 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.45 2004/03/22 21:41:57 ridcully Exp $"
 
-copyright = """
+__copyright__ = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
 (c) Copyright 2003-2004 iGOR Development Group
 All Rights Reserved
 This software is the proprietary information of the iGOR Development Group
 Use is subject to license terms
 """
-print copyright
+print __copyright__
 
 import sys
 import sha
@@ -364,14 +364,17 @@ class RLServer(IdleWatcher): # {{{
 		self._initstateless()
 
 	def _initstateless(self):
-		self.actions = []
+		self.requests = []
 		self.setActive()
 	
 	def getUpdate(self):
 		self.setActive()
-		update = self.actions
-		self.actions = []
+		update = self.requests
+		self.requests = []
 		return update
+
+	def addRequest(self, values):
+		self.requests.append(values)
 
 	def __getstate__(self):
 		return self.params
@@ -420,6 +423,10 @@ class RLServerList(StopableThread): # {{{
 		if self._servers.has_key(rls_id):
 			return self._servers[rls_id].getUpdate()
 		return None
+
+	def addRequest(self, values):
+		for server in self._servers.values():
+			server.addRequest(values)
 
 	def _load(self):
 		filename = config.file_serverlist
@@ -582,7 +589,7 @@ class Middleware: # {{{
 
 		try:
 			rawmode = self.rfile.read(1)
-		except error,e:
+		except socket.error,e:
 			log(Log.ERROR,e)
 			raise Error(Error.REQUESTERROR, "error reading mode")
 		if not rawmode:
@@ -595,7 +602,7 @@ class Middleware: # {{{
 		
 		try:
 			rawdatasize = self.rfile.read(4)
-		except error,e:
+		except socket.error,e:
 			log(Log.ERROR,e)
 			raise Error(Error.REQUESTERROR, "error reading datasize")
 		if len(rawdatasize)!=4:
@@ -609,7 +616,7 @@ class Middleware: # {{{
 		if mode==self.MODE_COMPRESS:
 			try:
 				rawuncompresseddatasize = self.rfile.read(4)
-			except error,e:
+			except socket.error,e:
 				log(Log.ERROR,e)
 				raise Error(Error.REQUESTERROR, "error reading uncompressed datasize")
 			if len(rawuncompresseddatasize)!=4:
@@ -654,8 +661,8 @@ class Middleware: # {{{
 
 	def send(self,data):
 		retdata = []
-		for list in data:
-			retdata.append(string.join(list,self.CELLSEPARATOR))
+		for row in data:
+			retdata.append(string.join(row,self.CELLSEPARATOR))
 		self.sendData(string.join(retdata,self.ROWSEPARATOR))
 
 	def reply(self,exception,data=[]):
@@ -725,7 +732,7 @@ class RaceListServer(SocketServer.ThreadingTCPServer, StopableThread): # {{{
 		if not self._requesthandlers.has_key(command):
 			raise Error(Error.REQUESTERROR, "unknown command")
 
-		return self._requesthandlers[command].handleRequest(client_address,request[0][1:])
+		return self._requesthandlers[command].handleRequest([client_address[0]]+request[0])
 
 	def calcLoad(self):
 		self._requests = self._requests + 1

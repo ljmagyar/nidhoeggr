@@ -17,15 +17,22 @@ class Param: # {{{
 # }}}
 
 class Request: # {{{
-	"""defines a command for the racelist"""
 	def __init__(self,command,paramconfig,description,resultdescription):
 		self.command = command
 		self.paramconfig = paramconfig
 		self.description = description
 		self.resultdescription = resultdescription
+		self.distributable = 0
 
 	def setParams(self,params):
 		self.params = params
+
+# }}}
+
+class DistributableRequest(Request): # {{{
+	def __init__(self, command, paramconfig, description, resultdescription):
+		Request.__init__(self, command, paramconfig, description, resultdescription)
+		self.distributable = 1
 
 # }}}
 
@@ -44,7 +51,23 @@ class Login(Request): # {{{
 
 # }}}
 
-class Host(Request): # {{{
+class NewUser(Request): # {{{
+	def __init__(self):
+		Request.__init__( self,
+			"login",
+			[
+				Param("client_id",paramchecks.check_string,"the client_id a client got assigned from the server it logged in"),
+				Param("protocol_version",paramchecks.check_string,"version of the protocol, the client expects"),
+				Param("client_version", paramchecks.check_string, "name/version string of the client"),
+				Param("client_uniqid", paramchecks.check_string, "some uniq id of the client")
+			],
+			"""This command is only distributed to the other race list servers; its similar to the Login command but contains the client_id the client got assigned from the server""",
+			"""The reply contains 4 cells: protocol version, server version, client id for further requests, ip the connection came from."""
+		)
+
+# }}}
+
+class Host(DistributableRequest): # {{{
 	def __init__(self):
 		Request.__init__( self, 
 			"host", 
@@ -83,6 +106,58 @@ class Host(Request): # {{{
 			],
 			"""Starts hosting of a race. The given informations are used to describe the race and will be displayed in the same order in the racelist.""",
 			"""A unique id for the server, that will be used to update the hosting and race informations and also by the clients to join/leave the race and the IP address the request came from"""
+		)
+# }}}
+
+class Join(DistributableRequest): # {{{
+	"""
+	"""
+	def __init__(self):
+		Request.__init__(self, 
+			"join", 
+			[
+				Param("server_id", paramchecks.check_string, ""), 
+				Param("client_id", paramchecks.check_string, ""), 
+				Param("firstname", paramchecks.check_string, ""), 
+				Param("lastname", paramchecks.check_string, ""), 
+				Param("class_id", paramchecks.check_class, ""), 
+				Param("team_id", paramchecks.check_team, ""), 
+				Param("mod_id", paramchecks.check_string, ""), 
+				Param("nationality", paramchecks.check_nationality, ""), 
+				Param("helmet_colour", paramchecks.check_helmetcolour, "")
+			],
+			"""The client with the given id joins the server with the given id. Several informations about the driver itself are also submited for the list of races and their drivers.""",
+			"""Nothing."""
+		)
+# }}}
+
+class Leave(DistributableRequest): # {{{
+	"""
+	"""
+	def __init__(self):
+		Request.__init__(self, 
+			"leave", 
+			[
+				Param("server_id", paramchecks.check_string, ""), 
+				Param("client_id", paramchecks.check_string, "")
+			],
+			"""Removes the client with the given id from the server with the given id.""",
+			"""Nothing."""
+		)
+# }}}
+
+class EndHost(DistributableRequest): # {{{
+	"""
+	"""
+	def __init__(self):
+		Request.__init__(self, 
+			"endhost", 
+			[
+				Param("server_id", paramchecks.check_string, ""),
+				Param("client_id", paramchecks.check_string, "")
+			],
+			"""Stops the hosting of the race with the given id.""",
+			"""Nothing."""
 		)
 # }}}
 
@@ -144,58 +219,6 @@ class ReqFull(Request): # {{{
 			race_laps,
 			race_notes
 			"""
-		)
-# }}}
-
-class Join(Request): # {{{
-	"""
-	"""
-	def __init__(self):
-		Request.__init__(self, 
-			"join", 
-			[
-				Param("server_id", paramchecks.check_string, ""), 
-				Param("client_id", paramchecks.check_string, ""), 
-				Param("firstname", paramchecks.check_string, ""), 
-				Param("lastname", paramchecks.check_string, ""), 
-				Param("class_id", paramchecks.check_class, ""), 
-				Param("team_id", paramchecks.check_team, ""), 
-				Param("mod_id", paramchecks.check_string, ""), 
-				Param("nationality", paramchecks.check_nationality, ""), 
-				Param("helmet_colour", paramchecks.check_helmetcolour, "")
-			],
-			"""The client with the given id joins the server with the given id. Several informations about the driver itself are also submited for the list of races and their drivers.""",
-			"""Nothing."""
-		)
-# }}}
-
-class Leave(Request): # {{{
-	"""
-	"""
-	def __init__(self):
-		Request.__init__(self, 
-			"leave", 
-			[
-				Param("server_id", paramchecks.check_string, ""), 
-				Param("client_id", paramchecks.check_string, "")
-			],
-			"""Removes the client with the given id from the server with the given id.""",
-			"""Nothing."""
-		)
-# }}}
-
-class EndHost(Request): # {{{
-	"""
-	"""
-	def __init__(self):
-		Request.__init__(self, 
-			"endhost", 
-			[
-				Param("server_id", paramchecks.check_string, ""),
-				Param("client_id", paramchecks.check_string, "")
-			],
-			"""Stops the hosting of the race with the given id.""",
-			"""Nothing."""
 		)
 # }}}
 
@@ -295,24 +318,37 @@ class Handler: # {{{
 	def __init__(self,server):
 		self._server = server
 
-	def handleRequest(self,client_address,values):
-		"""
-		"""
-		if len(self.paramconfig) != len(values):
-			raise nidhoeggr.Error(Error.REQUESTERROR,"param amount mismatch")
-		params = {'ip':client_address[0]}
+	def handleRequest(self,values):
+		params = self._paramsFromValues(values)
+		if self.distributable:
+			self._server._serverlist.addRequest(values)
+		return self._handleRequest(params)
+
+	def handleDistributedRequest(self, values):
+		params = self._paramsFromValues(values)
+		return self._handleDistributedReqest(params)
+
+	def _paramsFromValues(self, values):
+		if len(self.paramconfig) != len(values)-2:
+			raise nidhoeggr.Error(nidhoeggr.Error.REQUESTERROR,"param amount mismatch")
+		params = {}
+		checkresult = paramchecks.check_ip(values[0])
+		if checkresult != None:
+			raise nidhoeggr.Error(nidhoeggr.Error.INTERNALERROR,"client address malformed")
+		params['ip'] = values[0]
 		for i in range(len(self.paramconfig)):
-			value = values[i]
+			value = values[i+2]
 			param = self.paramconfig[i]
 			checkresult = param.doCheck(value)
 			if checkresult != None:
-				raise nidhoeggr.Error(Error.REQUESTERROR,"Error on %s: %s" % (param.paramname,checkresult))
+				raise nidhoeggr.Error(nidhoeggr.Error.REQUESTERROR,"Error on %s: %s" % (param.paramname,checkresult))
 			params[param.paramname] = value
+		return params
 
-		return self._handleRequest(params)
+	def _handleRequest(self,data): pass
 
-	def _handleRequest(self,data):
-		raise NotImplementedError("Handler._handleRequest is not implemented")
+	def _handleDistributedReqest(self,data):
+		self._handleDistributedReqest(data)
 
 # }}}
 
@@ -325,9 +361,9 @@ class HandlerLogin(Handler, Login): # {{{
 	def _handleRequest(self,params):
 		if params["protocol_version"]!=PROTOCOL_VERSION:
 			if __debug__:
-				raise nidhoeggr.Error(Error.REQUESTERROR, "wrong protcol version - expected '%s'"%PROTOCOL_VERSION)
+				raise nidhoeggr.Error(nidhoeggr.Error.REQUESTERROR, "wrong protcol version - expected '%s'"%PROTOCOL_VERSION)
 			else:
-				raise nidhoeggr.Error(Error.REQUESTERROR, "wrong protcol version")
+				raise nidhoeggr.Error(nidhoeggr.Error.REQUESTERROR, "wrong protcol version")
 
 		user = self._server._racelist.getUserByUniqId(params["client_uniqid"])
 		if user is None:
@@ -336,6 +372,18 @@ class HandlerLogin(Handler, Login): # {{{
 
 		ret = [[PROTOCOL_VERSION,nidhoeggr.SERVER_VERSION,user.params['client_id'],user.params['outside_ip']]]
 		return ret + self._server._serverlist.getSimpleServerListAsReply()
+
+	def _handleDistributedReqest(self, params): pass
+
+# }}}
+
+class HandlerNewUser(Handler, NewUser): # {{{
+	
+	def __init__(self,server):
+		NewUser.__init__(self)
+		Handler.__init__(self, server)
+
+	def _handleDistributedReqest(self,params): pass
 
 # }}}
 
@@ -424,7 +472,7 @@ class HandlerReport(Handler, Report): # {{{
 
 	def _handleRequest(self,params):
 		# TODO
-		raise nidhoeggr.Error(Error.UNIMPLMENTED, "not yet implemented")
+		raise nidhoeggr.Error(nidhoeggr.Error.UNIMPLMENTED, "not yet implemented")
 
 # }}}
 
