@@ -6,12 +6,13 @@ import nidhoeggr
 
 if __name__!="__main__": pass
 
-c = nidhoeggr.Client('genhelp.py','localhost')
-r = nidhoeggr.RequestSender(c,[['help']])
+c = nidhoeggr.Client()
+c.doLogin('genhelp.py')
+result = c.doRequest([['help']])
 
 fw = open('command_documentation.tex','w')
 fw.write( '\\section{Commands}\n\n' )
-for row in r.result:
+for row in result:
 	if row[0]=='command':
 		fw.write( '\\subsection{%s}\n\n' % re.sub(r'_',r'\\_',row[1]) )
 		fw.write( '\\begin{description}\n' )

@@ -23,6 +23,10 @@ class Request: # {{{
 		self.paramconfig = paramconfig
 		self.description = description
 		self.resultdescription = resultdescription
+
+	def setParams(self,params):
+		self.params = params
+
 # }}}
 
 class RequestLogin(Request): # {{{
@@ -331,7 +335,7 @@ class RequestHandlerLogin(RequestHandler, RequestLogin): # {{{
 			self._server._racelist.addUser(user)
 
 		ret = [[PROTOCOL_VERSION,nidhoeggr.SERVER_VERSION,user.params['client_id'],user.params['outside_ip']]]
-		return ret + self._server._serverlist.getServerListAsReply()
+		return ret + self._server._serverlist.getSimpleServerListAsReply()
 
 # }}}
 
@@ -461,12 +465,12 @@ class RequestHandlerRLSRegister(RequestHandler, RequestRLSRegister): # {{{
 	def __init__(self, server):
 		RequestRLSRegister.__init__(self)
 		RequestHandler.__init__(self, server)
+		self.serverlist = self._server._serverlist
 
 	def _handleRequest(self, params):
-		server = nidhoeggr.RLServer(params)
-		self._server._serverlist.addRLServer(server)
-		ret = self._server._serverlist.getRealServerListAsReply()
-		return ret
+		self.serverlist.addRLServer(params)
+		return self.serverlist.getFullServerListAsReply()
+
 # }}}
 
 class RequestHandlerRLSUnRegister(RequestHandler, RequestRLSUnRegister): # {{{
@@ -474,10 +478,12 @@ class RequestHandlerRLSUnRegister(RequestHandler, RequestRLSUnRegister): # {{{
 	def __init__(self, server):
 		RequestRLSUnRegister.__init__(self)
 		RequestHandler.__init__(self, server)
+		self.serverlist = self._server._serverlist
 
 	def _handleRequest(self, params):
-		ret = []
-		return ret
+		self.serverlist.delRLServer(params)
+		return [[]]
+
 # }}}
 
 class RequestHandlerRLSUpdate(RequestHandler, RequestRLSUpdate): # {{{

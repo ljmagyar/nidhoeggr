@@ -12,7 +12,7 @@ Login of the client/user onto the server. This command must be called before all
 \item {\tt client\_uniqid}: some uniq id of the client
 \end{itemize}
 \item {\it Result:}\\
-The reply contains 4 cells: protocol version, server version, client id for further requests, ip the connection came from
+The reply contains 4 cells: protocol version, server version, client id for further requests, ip the connection came from.
 \end{description}
 
 \subsection{req\_full}
@@ -178,6 +178,61 @@ Updates the informations of the given server.
 \end{itemize}
 \item {\it Result:}\\
 Nothing.
+\end{description}
+
+\subsection{rls\_register}
+
+\begin{description}
+\item {\it Description:}\\
+Registers a race list server for the reproduction
+\item {\it Parmameters:}
+\begin{itemize}
+\item {\tt rls\_id}: 
+\item {\tt name}: 
+\item {\tt port}: 
+\item {\tt maxload}: 
+\end{itemize}
+\item {\it Result:}\\
+List of the known race list servers
+\end{description}
+
+\subsection{rls\_unregister}
+
+\begin{description}
+\item {\it Description:}\\
+Removes the race list server from the known servers
+\item {\it Parmameters:}
+\begin{itemize}
+\item {\tt rls\_id}: 
+\end{itemize}
+\item {\it Result:}\\
+Nothing
+\end{description}
+
+\subsection{rls\_update}
+
+\begin{description}
+\item {\it Description:}\\
+A list of all updates from a certain server
+\item {\it Parmameters:}
+\begin{itemize}
+\item {\tt rls\_id}: 
+\end{itemize}
+\item {\it Result:}\\
+List of all requests on this server since the last call of this function
+\end{description}
+
+\subsection{rls\_fullupdate}
+
+\begin{description}
+\item {\it Description:}\\
+Complete list of all data from the server; this is used after the registration to get the complete data from the choosen master
+\item {\it Parmameters:}
+\begin{itemize}
+\item {\tt rls\_id}: 
+\end{itemize}
+\item {\it Result:}\\
+All Users, Races and their Drivers on this server
 \end{description}
 
 \subsection{copyright}
