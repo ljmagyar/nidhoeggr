@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.46 2004/03/22 23:04:59 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.47 2004/03/25 20:19:58 ridcully Exp $"
 
 __copyright__ = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -89,9 +89,9 @@ class RaceList(StopableThread): # {{{
 				raise Error(Error.AUTHERROR, "user unknown/not logged in")
 			ret = self._users[client_id]
 			ret.setActive()
+			return ret
 		finally:
 			self._users_rwlock.release_read()
-		return ret
 
 	def getUserByUniqId(self,client_uniqid):
 		if self._usersuniqids.has_key(client_uniqid):
@@ -159,10 +159,9 @@ class RaceList(StopableThread): # {{{
 		ret = []
 		self._races_rwlock.acquire_read()
 		try:
-			ret = self.reqfull
+			return self.reqfull
 		finally:
 			self._races_rwlock.release_read()
-		return ret
 
 	def updateRaceViaBroadcast(self, broadcastid, players, maxplayers, racetype, trackdir, sessiontype, sessionleft):
 		self._races_rwlock.acquire_write()
@@ -393,23 +392,36 @@ class RLServerList(StopableThread): # {{{
 		self._servers_rwlock = ReadWriteLock()
 		self._load()
 
-	def addRLServer(self,params):
-		rls = RLServer(params)
+	def hasRLServer(self, rls_id):
+		return self._servers.has_key(rls_id)
+
+	def getRLServer(self, rls_id):
+		self._servers_rwlock.acquire_read()
+		try:
+			if not self.hasRLServer(rls_id):
+				raise Error(Error.AUTHERROR, "race list server unknown/not logged in")
+			return self._servers[rls_id]
+		finally:
+			self._servers_rwlock.release_read()
+
+	def addRLServer(self,rls):
+		rls_id = server.params['rls_id']
 		self._servers_rwlock.acquire_write()
 		try:
-			self._servers[server.params['rls_id']] = rls
+			if not self.hasRLServer(rls_id):
+				self._servers[rls_id] = rls
 		finally:
 			self._servers_rwlock.release_write()
 		self._buildServerListReply()
 
-	def delRLServer(self,params):
+	def delRLServer(self,rls_id,ip):
 		rls_id = params['rls_id']
 		# check for unknown server
 		if not self._servers.has_key(rls_id):
 			return
 		# check for the same ip, as the server has registered
 		rls = self._servers[rls_id]
-		if not params['ip']==rls.params['ip']:
+		if not ip==rls.params['ip']:
 			return
 		# delete the server from the list
 		self._servers_rwlock.acquire_write()
@@ -419,15 +431,22 @@ class RLServerList(StopableThread): # {{{
 			self._servers_rwlock.release_write()
 		self._buildServerListReply()
 
-	def getUpdate(self, params):
-		rls_id = params['rls_id']
-		if self._servers.has_key(rls_id):
-			return self._servers[rls_id].getUpdate()
-		return None
+	def getUpdate(self, rls_id):
+		self._servers_rwlock.acquire_write()
+		try:
+			if self._servers.has_key(rls_id):
+				return self._servers[rls_id].getUpdate()
+			return None
+		finally:
+			self._servers_rwlock.release_write()
 
 	def addRequest(self, values):
-		for server in self._servers.values():
-			server.addRequest(values)
+		self._servers_rwlock.acquire_write()
+		try:
+			for server in self._servers.values():
+				server.addRequest(values)
+		finally:
+			self._servers_rwlock.release_write()
 
 	def _load(self):
 		filename = config.file_serverlist
@@ -456,8 +475,8 @@ class RLServerList(StopableThread): # {{{
 			log(Log.WARNING, "failed to save server list to file '%s': %s" % (filename, e))
 
 	def _buildServerListReply(self):
+		self._servers_rwlock.acquire_read()
 		try:
-			self._servers_rwlock.acquire_read()
 			self._simpleserverlistreply = []
 			self._fullserverlistreply = []
 			for server in self._servers.values():

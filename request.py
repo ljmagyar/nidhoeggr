@@ -512,11 +512,11 @@ class HandlerRLSRegister(Handler, RLSRegister): # {{{
 	def __init__(self, server):
 		RLSRegister.__init__(self)
 		Handler.__init__(self, server)
-		self.serverlist = self._server._serverlist
 
 	def _handleRequest(self, params):
-		self.serverlist.addRLServer(params)
-		return self.serverlist.getFullServerListAsReply()
+		rls = nidhoeggr.RLServerList(params)
+		self._server._serverlist.addRLServer(rls)
+		return self._server._serverlist.getFullServerListAsReply()
 
 # }}}
 
@@ -525,10 +525,9 @@ class HandlerRLSUnRegister(Handler, RLSUnRegister): # {{{
 	def __init__(self, server):
 		RLSUnRegister.__init__(self)
 		Handler.__init__(self, server)
-		self.serverlist = self._server._serverlist
 
 	def _handleRequest(self, params):
-		self.serverlist.delRLServer(params)
+		self._server._serverlist.delRLServer(params['rls_id'], params['ip'])
 		return [[]]
 
 # }}}
@@ -540,8 +539,8 @@ class HandlerRLSUpdate(Handler, RLSUpdate): # {{{
 		Handler.__init__(self, server)
 
 	def _handleRequest(self, params):
-		ret = []
-		return ret
+		ret = self._serverlist.getUpdate(params['rls_id'])
+		return [ret]
 # }}}
 
 class HandlerRLSFullUpdate(Handler, RLSFullUpdate): # {{{
