@@ -12,6 +12,9 @@
 # this is mandatory and the value localhost will fail
 servername = localhost
 
+# run this server as an daemon
+# daemon = 1
+
 #------------------------------------------------------------------------------
 # port config
 #------------------------------------------------------------------------------

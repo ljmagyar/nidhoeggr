@@ -1,7 +1,7 @@
 import nidhoeggr
 import paramchecks
 
-PROTOCOL_VERSION="scary v1.1"
+PROTOCOL_VERSION="scary v1.0"
 
 class Param: # {{{
 	def __init__(self, paramname, check, help):

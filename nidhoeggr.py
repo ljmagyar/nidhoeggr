@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.50 2004/03/29 20:55:29 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.51 2004/04/24 13:16:12 ridcully Exp $"
 
 __copyright__ = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -361,6 +361,10 @@ class User(IdleWatcher): # {{{
 # }}}
 
 class RLServer(IdleWatcher): # {{{
+
+	NEW = 1
+	REGISTERED = 2
+
 	def __init__(self,params):
 		self.params = params
 		IdleWatcher.__init__(self, config.server_timeout)
@@ -369,7 +373,7 @@ class RLServer(IdleWatcher): # {{{
 	def _initstateless(self):
 		self.requests = []
 		self.setActive()
-		self.getfull = 1
+		self.state = RLServer.NEW
 	
 	def getUpdate(self):
 		self.setActive()
@@ -511,14 +515,23 @@ class RLServerList(StopableThread): # {{{
 				continue
 			try:
 				client = Client(rls.params['ip'],int(rls.params['port']))
-				if rls.getfull:
+				if rls.state == RLServer.NEW:
+					# send a register command to the server
+					rls_register = request.RLSRegister()
+					result = client.doRequest(rls_register.generateCompleteRequest({"rls_id":self._serverlist._rls_id, "name":config.servername, "port":str(config.racelistport), "maxload":str(config.server_maxload)}))
+					rls.state = RLServer.REGISTERED
+					for row in result:
+						# add the servers from the list, if they are new
+						if not self.hasRLServer(row[0]):
+							self.handleDistributedRequest(rls_register.generateDistributableRequest({'ip':row[2], 'rls_id':row[0], 'name':row[1], 'port':row[3], 'maxload':row[4]}))
+					# after the registering query a full update
 					rq = request.RLSFullUpdate()
 				else:
+					# once registered we only get updates
 					rq = request.RLSUpdate()
 				result = client.doRequest(rq.generateCompleteRequest({"rls_id":rls_id}))
 				for row in result:
 					self._racelistserver.handleDistributedRequest(row)
-				rls.getfull = 0
 			except Exception, e:
 				log(Log.WARNING, "error getting update from rls=%s - deleting: %s" % (rls_id,e))
 				self._servers_rwlock.acquire_write()
@@ -944,8 +957,9 @@ class Client(Middleware): # {{{
 	def __init__(self, server='localhost', port=DEFAULT_RACELISTPORT):
 		self.server_address = (server,port)
 
-	def doLogin(self, client_uniq_id):
-		result = self.doRequest([['login', request.PROTOCOL_VERSION, SERVER_VERSION, client_uniq_id]])
+	def doLogin(self, client_uniqid):
+		login = request.Login()
+		result = self.doRequest(login.generateCompleteRequest({'client_uniqid':client_uniqid, 'protocol_version':request.PROTOCOL_VERSION, 'client_version':SERVER_VERSION}))
 		self.client_id = result[0][2]
 		return result
 

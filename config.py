@@ -22,20 +22,21 @@ class ConfigError(Exception):
 class Config:
 	def __init__(self):
 		self.__config_vars = {}
-		self.__registerConfigVariable(ConfigVariable('configfile',                'server.conf',         paramchecks.check_string, str))
-		self.__registerConfigVariable(ConfigVariable('servername',                'localhost',           paramchecks.check_string, str))
-		self.__registerConfigVariable(ConfigVariable('racelistport',              DEFAULT_RACELISTPORT,  paramchecks.check_suint,  int))
-		self.__registerConfigVariable(ConfigVariable('broadcastport',             DEFAULT_BROADCASTPORT, paramchecks.check_suint,  int))
-		self.__registerConfigVariable(ConfigVariable('initserver_name',           "maserati.blw.net",    paramchecks.check_string, str))
-		self.__registerConfigVariable(ConfigVariable('initserver_port',           DEFAULT_RACELISTPORT,  paramchecks.check_suint,  int))
-		self.__registerConfigVariable(ConfigVariable('user_timeout',              3600,                  paramchecks.check_suint,  int))
-		self.__registerConfigVariable(ConfigVariable('race_timeout',              300,                   paramchecks.check_suint,  int))
-		self.__registerConfigVariable(ConfigVariable('server_timeout',            90,                    paramchecks.check_suint,  int))
-		self.__registerConfigVariable(ConfigVariable('server_update',             30,                    paramchecks.check_suint,  int))
-		self.__registerConfigVariable(ConfigVariable('racelist_clean_interval',   60,                    paramchecks.check_suint,  int))
-		self.__registerConfigVariable(ConfigVariable('server_maxload',            3,                     paramchecks.check_suint,  int))
-		self.__registerConfigVariable(ConfigVariable('file_racelist',             'racelist.cpickle',    paramchecks.check_string, str))
-		self.__registerConfigVariable(ConfigVariable('file_serverlist',           'serverlist.cpickle',  paramchecks.check_string, str))
+		self.__registerConfigVariable(ConfigVariable('configfile',                'server.conf',         paramchecks.check_string,  str))
+		self.__registerConfigVariable(ConfigVariable('servername',                'localhost',           paramchecks.check_string,  str))
+		self.__registerConfigVariable(ConfigVariable('racelistport',              DEFAULT_RACELISTPORT,  paramchecks.check_suint,   int))
+		self.__registerConfigVariable(ConfigVariable('broadcastport',             DEFAULT_BROADCASTPORT, paramchecks.check_suint,   int))
+		self.__registerConfigVariable(ConfigVariable('daemon',                    0,                     paramchecks.check_boolean, int))
+		self.__registerConfigVariable(ConfigVariable('initserver_name',           "maserati.blw.net",    paramchecks.check_string,  str))
+		self.__registerConfigVariable(ConfigVariable('initserver_port',           DEFAULT_RACELISTPORT,  paramchecks.check_suint,   int))
+		self.__registerConfigVariable(ConfigVariable('user_timeout',              3600,                  paramchecks.check_suint,   int))
+		self.__registerConfigVariable(ConfigVariable('race_timeout',              300,                   paramchecks.check_suint,   int))
+		self.__registerConfigVariable(ConfigVariable('server_timeout',            90,                    paramchecks.check_suint,   int))
+		self.__registerConfigVariable(ConfigVariable('server_update',             30,                    paramchecks.check_suint,   int))
+		self.__registerConfigVariable(ConfigVariable('racelist_clean_interval',   60,                    paramchecks.check_suint,   int))
+		self.__registerConfigVariable(ConfigVariable('server_maxload',            3,                     paramchecks.check_suint,   int))
+		self.__registerConfigVariable(ConfigVariable('file_racelist',             'racelist.cpickle',    paramchecks.check_string,  str))
+		self.__registerConfigVariable(ConfigVariable('file_serverlist',           'serverlist.cpickle',  paramchecks.check_string,  str))
 
 	def __registerConfigVariable(self,cv):
 		self.__config_vars[cv.key] = cv
