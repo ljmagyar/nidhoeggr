@@ -98,12 +98,14 @@ class IdleWatcher: # {{{
 		"""
 		self.params['lastactivity'] = time.time()
 
-	def checkTimeout(self,currenttime=None):
+	def checkTimeout(self,currenttime=None,timeout=None):
 		"""
 		"""
 		if currenttime is None:
 			currenttime = time.time()
-		return self.params['lastactivity'] + self.params['timeout'] < currenttime
+		if timeout is None:
+			timeout = self.params['timeout']
+		return self.params['lastactivity'] + timeout < currenttime
 
 
 # IdleWatcher }}}
