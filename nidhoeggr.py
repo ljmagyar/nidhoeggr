@@ -1,6 +1,16 @@
 #!/usr/bin/env python2.2
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.15 2003/08/13 19:04:07 ridcully Exp $"
+# TODO
+# - interface for Tom's secur to report racedata
+# - interface to BigBrother
+# - writing a client for this protocol
+# - way to handle permanent servers
+# - allow servers to have names instead of ips so dyndns entries can be used
+
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.16 2003/09/19 11:00:17 ridcully Exp $"
+
+DEFAULT_RACELISTPORT=27233
+DEFAULT_BROADCASTPORT=6970
 
 copyright = """
 Copyright 2003 Christoph Frick <rid@zefix.tv>
@@ -22,6 +32,8 @@ import threading
 import cPickle
 import re
 import select
+import signal
+import getopt
 
 class Log: # {{{
 	"""
@@ -42,7 +54,8 @@ class Log: # {{{
 		"""
 		"""
 		if loglevel >= self._loglevel:
-			print "%s %s:\t%s" % (Log._loglevelrepr[loglevel],time.ctime(),msg)
+			message = "%s %s:\t%s" % (Log._loglevelrepr[loglevel],time.ctime(),msg)
+			print >>sys.stderr, message
 
 	def setLogLevel(self,loglevel):
 		"""
@@ -961,9 +974,10 @@ class RaceListServer(SocketServer.ThreadingTCPServer): # {{{
 	"""
 	"""
 
-	def __init__(self,racelistport=27233):
+	def __init__(self,racelistport=DEFAULT_RACELISTPORT,broadcastport=DEFAULT_BROADCASTPORT):
 		"""
 		"""
+		print copyright
 		log(Log.INFO,"init %s on port %d" % (SERVER_VERSION,racelistport))
 		
 		self.allow_reuse_address = 1
@@ -971,7 +985,7 @@ class RaceListServer(SocketServer.ThreadingTCPServer): # {{{
 
 		self._racelist = RaceList()
 
-		self._broadcastserver = RaceListBroadCastServer(self._racelist)
+		self._broadcastserver = RaceListBroadCastServer(self._racelist,broadcastport)
 
 		self._requesthandlers = {}
 		self._addRequestHandler(RaceListRequestHandlerLogin(self))
@@ -1136,20 +1150,47 @@ class RaceListServerRequestHandler(SocketServer.StreamRequestHandler): # {{{
 		if clientident!=self.CLIENTINDENT:
 			raise RaceListProtocolException(400, "unknown client ident")
 
-		mode = struct.unpack(">c", self.rfile.read(1))[0]
+		try:
+			rawmode = self.rfile.read(1)
+		except error,e:
+			log(Log.ERROR,e)
+			raise RaceListProtocolException(400, "error reading mode")
+		if not rawmode:
+			raise RaceListProtocolException(400, "error reading mode")
+
+		mode = struct.unpack(">c", rawmode)[0]
+
 		if mode!=self.MODE_CLEARTEXT and mode!=self.MODE_COMPRESS:
 			raise RaceListProtocolException(400, "unhandled mode %s" % (mode))
 		
-		datasize = struct.unpack(">L", self.rfile.read(4))[0]
+		try:
+			rawdatasize = self.rfile.read(4)
+		except error,e:
+			log(Log.ERROR,e)
+			raise RaceListProtocolException(400, "error reading datasize")
+		if len(rawdatasize)!=4:
+			raise RaceListProtocolException(400, "error reading datasize")
+
+		datasize = struct.unpack(">L", rawdatasize)[0]
 
 		if datasize>self.MAXSIZE:
-			raise RaceListProtocolException(400, "unreasonable large size=%d" %(mode))
+			raise RaceListProtocolException(400, "unreasonable large size=%d" %(datasize))
 
-		data = self.rfile.read(datasize)
+		try:
+			data = self.rfile.read(datasize)
+		except socket.error, e:
+			log(Log.ERROR,e)
+			raise RaceListProtocolException(400, "error reading data")
+
 		if len(data)!=datasize:
-			raise RaceListProtocolException(400, "client canceled connection before expected amount of data could be read")
+			raise RaceListProtocolException(400, "error reading data")
+
 		if mode=="c":
-			data = zlib.decompress(data)
+			try:
+				data = zlib.decompress(data)
+			except zlib.error,e:
+				log(Log.ERROR,e)
+				raise RaceListProtocolException(400, "error decompressing  data")
 
 		return data
 
@@ -1181,10 +1222,10 @@ class RaceListBroadCastServer(SocketServer.ThreadingUDPServer, StopableThread): 
 	"""
 	"""
 
-	def __init__(self,racelist,broadcastport=6970):
+	def __init__(self,racelist,broadcastport=DEFAULT_BROADCASTPORT):
 		"""
 		"""
-		log(Log.INFO,"starting broadcast listen server on port %d" % (broadcastport))
+		log(Log.INFO,"init broadcast listen server on port %d" % (broadcastport))
 
 		StopableThread.__init__(self)
 		
@@ -1227,36 +1268,57 @@ class RaceListBroadCastServerRequestHandler(SocketServer.DatagramRequestHandler)
 
 # }}}
 
-class Nidhoeggr: # {{{
-	"""
-	TODO
-	- interface for Tom's secur to report racedata
-	- interface to BigBrother
-	- writing a client for this protocol
-	- way to handle permanent servers
-	- allow servers to have names instead of ips so dyndns entries can be used
-	- the broadcast server can not be canceled correct - find a way to send him the signals the main server gets
-	"""
-	def __init__(self):
-		"""
-		"""
-		print copyright
-		self.racelistserver = RaceListServer()
+def handle_shutdown(signal,frame):
+	global server
+	server.stopServer()
+	sys.exit(0)
 
-	def serve_forever(self):
-		"""
-		"""
+def main(argv=None):
+	if argv==None:
+		argv = sys.argv
+	try:
+		racelistport = DEFAULT_RACELISTPORT
+		broadcastport = DEFAULT_BROADCASTPORT
+
 		try:
-			log(Log.INFO,"starting racelist server")
-			self.racelistserver.startServer()
-		except KeyboardInterrupt:
-			self.racelistserver.stopServer()
+			opts, args = getopt.getopt(argv[1:], "r:b:h")
+		except getopt.error, msg:
+			raise Exception(msg)
 
+		for o,a in opts:
+			if o in ("-h", "--help"): 
+				print >>sys.stderr, "Usage:"
+				print >>sys.stderr, "%s [-r <port>] [-b <port>]" % argv[0]
+				print >>sys.stderr, "-r <port>: port where the racelist server is listening (default=%d)" % DEFAULT_RACELISTPORT
+				print >>sys.stderr, "-b <port>: port where the broadcast listen server is listening (default=%d)" % DEFAULT_BROADCASTPORT
+				return 0
 
-# }}}
+			if o in ("-r", "--racelistport"):
+				try:
+					racelistport = string.atoi(a)
+					assert( 0 < racelistport < 65536 )
+				except Exception,e:
+					raise Exception("expect value between 1 and 65535 for raceport (%s)" % e)
+
+			if o in ("-b", "--broadcastport"):
+				try:
+					broadcastport = string.atoi(a)
+					assert( 0 < broadcastport < 65536 )
+				except Exception,e:
+					raise Usage("expect value between 1 and 65535 for broadcastport (%s)" % e)
+	except Exception, err:
+		print >>sys.stderr, err
+		print >>sys.stderr, "For help use -h"
+		return 2
+	
+	global server 
+	server = RaceListServer(racelistport,broadcastport)
+	signal.signal(signal.SIGINT, handle_shutdown)
+	signal.signal(signal.SIGTERM, handle_shutdown)
+	signal.signal(signal.SIGKILL, handle_shutdown)
+	server.startServer()
 
 if __name__=="__main__":
-	server = Nidhoeggr()
-	server.serve_forever()
+	sys.exit(main())
 
 # vim:fdm=marker

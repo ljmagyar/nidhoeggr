@@ -1,4 +1,4 @@
-VERSION=0.2
+VERSION=0.3
 
 SRC=scary.tex commanddoku.tex
 TARSRC=$(SRC) nidhoeggr.py Makefile
