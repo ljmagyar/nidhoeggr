@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.53 2004/04/25 14:25:17 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.54 2004/04/25 14:46:38 ridcully Exp $"
 
 __copyright__ = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -404,8 +404,6 @@ class RLServer(IdleWatcher): # {{{
 		# load as it will be used to sort this entry for the clients
 		# in the list
 		self.load_diff = int(self.params['maxload']) - current_load
-		if self.load_diff < 0:
-			self.load_diff = 0
 
 	def addRequest(self, values):
 		# TODO: maybe better use a max value here and then du simply a
