@@ -54,20 +54,17 @@ class Login(Request): # {{{
 
 # }}}
 
-class NewUser(Request): # {{{
-	command = "newuser"
+class DistributedLogin(Request): # {{{
+	command = "distributedlogin"
 	paramconfig = [
 		Param("client_id",paramchecks.check_string,"the client_id a client got assigned from the server it logged in"),
-		Param("protocol_version",paramchecks.check_string,"version of the protocol, the client expects"),
-		Param("client_version", paramchecks.check_string, "name/version string of the client"),
-		Param("client_uniqid", paramchecks.check_string, "some uniq id of the client")
-	]
+	] + Login.paramconfig
 	description = """This command is only distributed to the other race list servers; its similar to the Login command but contains the client_id the client got assigned from the server"""
-	resultdescription = """The reply contains 4 cells: protocol version, server version, client id for further requests, ip the connection came from."""
+	resultdescription = """Nothing"""
 
 # }}}
 
-class Host(DistributableRequest): # {{{
+class Host(Request): # {{{
 	command = "host"
 	paramconfig = [
 		Param("client_id", paramchecks.check_string, ""), 
@@ -104,6 +101,16 @@ class Host(DistributableRequest): # {{{
 	]
 	description = """Starts hosting of a race. The given informations are used to describe the race and will be displayed in the same order in the racelist."""
 	resultdescription = """A unique id for the server, that will be used to update the hosting and race informations and also by the clients to join/leave the race and the IP address the request came from"""
+
+# }}}
+
+class DistributedHost(Request): # {{{
+	command = "distributedhost"
+	paramconfig = [
+		Param("server_id", paramchecks.check_string, ""), 
+	] + Host.paramconfig
+	description = """This command is only distributed to the other race list servers; its similar to the Host command but contains the server_id the hosting client got assigned from the server"""
+	resultdescription = """Nothing"""
 
 # }}}
 
@@ -329,9 +336,9 @@ class HandlerLogin(Handler, Login): # {{{
 		if user is None:
 			user = nidhoeggr.User(params["client_uniqid"],params['ip'])
 			self._server._racelist.addUser(user)
-			newuser = NewUser()
+			dl = DistributedLogin()
 			params['client_id'] = user.params['client_id']
-			self._server._serverlist.addRequest(newuser.generateRequest(params))
+			self._server._serverlist.addRequest(dl.generateDistributableRequest(params))
 
 		ret = [[PROTOCOL_VERSION,nidhoeggr.SERVER_VERSION,user.params['client_id'],user.params['outside_ip']]]
 		return ret + self._server._serverlist.getSimpleServerListAsReply()
@@ -340,19 +347,24 @@ class HandlerLogin(Handler, Login): # {{{
 
 # }}}
 
-class HandlerNewUser(Handler, NewUser): # {{{
+class HandlerDistributedLogin(Handler, DistributedLogin): # {{{
 	
 	def __init__(self,server):
-		NewUser.__init__(self)
+		DistributedLogin.__init__(self)
 		Handler.__init__(self, server)
 
-	def _handleDistributedReqest(self,params): pass
+	def _handleRequest(self, params): pass
+
+	def _handleDistributedReqest(self,params):
+		user = self._server._racelist.getUserByUniqId(params["client_uniqid"])
+		if user is None:
+			user = nidhoeggr.User(params["client_uniqid"],params['ip'],params['client_id'])
+			self._server._racelist.addUser(user)
 
 # }}}
 
 class HandlerHost(Handler, Host): # {{{
-	"""
-	"""
+
 	def __init__(self, server):
 		Host.__init__(self)
 		Handler.__init__(self, server)
@@ -367,7 +379,31 @@ class HandlerHost(Handler, Host): # {{{
 		server_id = race.params['server_id']
 		self._server._racelist.driverJoinRace(server_id,driver)
 
+		dh = DistributedHost()
+		params['server_id'] = server_id
+		self._server._serverlist.addRequest(dh.generateDistributableRequest(params))
+
 		return [[server_id,params['ip']]]
+
+# }}}
+
+class HandlerDistributedHost(Handler, DistributedHost): # {{{
+
+	def __init__(self, server):
+		DistributedHost.__init__(self)
+		Handler.__init__(self, server)
+
+	def _handleRequest(self, params): pass
+
+	def _handleDistributedReqest(self,params):
+		user = self._server._racelist.getUser(params["client_id"])
+
+		race = nidhoeggr.Race(params)
+		self._server._racelist.addRace(race)
+
+		driver = nidhoeggr.Driver(user,params)
+		server_id = race.params['server_id']
+		self._server._racelist.driverJoinRace(server_id,driver)
 
 # }}}
 
