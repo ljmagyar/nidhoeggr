@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.57 2004/05/02 09:02:49 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.58 2004/05/02 09:22:12 ridcully Exp $"
 
 __copyright__ = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -551,6 +551,20 @@ class RLServerList(StopableThread): # {{{
 	def _join(self):
 		self._save()
 
+	def registerServersFromRLRegisterResult(self, racelistserver, result):
+		for row in result:
+			# add the servers from the list, if they are new
+			if not self.hasRLServer(row[1]):
+				racelistserver.handleDistributedRequest(rls_register.generateDistributableRequest({
+					'protocol_version':row[0], 
+					'rls_id':row[1], 
+					'name':row[2], 
+					'ip':row[3], 
+					'port':row[4], 
+					'maxload':row[5]
+				}))
+
+
 	def _run(self):
 		ct = time.time()
 		self._racelistserver.calcLoad(ct)
@@ -564,10 +578,7 @@ class RLServerList(StopableThread): # {{{
 					rls_register = request.RLSRegister()
 					result = client.doRequest(rls_register.generateCompleteRequest(self._rls.params))
 					rls.state = RLServer.REGISTERED
-					for row in result:
-						# add the servers from the list, if they are new
-						if not self.hasRLServer(row[0]):
-							self._racelistserver.handleDistributedRequest(rls_register.generateDistributableRequest({'ip':row[2], 'rls_id':row[0], 'name':row[1], 'port':row[3], 'maxload':row[4]}))
+					self.registerServersFromRLRegisterResult(self._racelistserver, result)
 					# after the registering query a full update
 					rq = request.RLSFullUpdate()
 				else:
@@ -888,15 +899,7 @@ class RaceListServer(SocketServer.ThreadingTCPServer, StopableThread): # {{{
 				rls_register = request.RLSRegister()
 				result = client.doRequest(rls_register.generateCompleteRequest(self._serverlist._rls.params))
 				log(Log.INFO, "success - registering to the server list from the init server")
-				for row in result:
-					self.handleDistributedRequest(rls_register.generateDistributableRequest({
-						'protocol_version':row[0], 
-						'rls_id':row[1], 
-						'name':row[2], 
-						'ip':row[3], 
-						'port':row[4], 
-						'maxload':row[5]
-					}))
+				self.serverlist.registerServersFromRLRegisterResult(self, self, result)
 				success = 1
 				break
 			except Exception, e:
