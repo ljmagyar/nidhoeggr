@@ -212,7 +212,7 @@ class ReqFull(Request): # {{{
 # }}}
 
 class Report(Request): # {{{
-	comman = "report"
+	command = "report"
 	paramconfig = [
 		Param("server_id", paramchecks.check_string, "")
 	]
@@ -237,7 +237,7 @@ class Help(Request): # {{{
 
 # }}}
 
-class Broadcast(Request): # {{{
+class Broadcast(DistributableRequest): # {{{
 	command ="broadcast"
 	paramconfig = [
 		Param("version",paramchecks.check_string,""),
@@ -539,7 +539,7 @@ class HandlerBroadcast(Handler, Broadcast): # {{{
 
 	def _handleRequest(self, params):
 		self._server._racelist.updateRaceViaBroadcast(params)
-		return []
+		return [[]]
 # }}}
 
 class HandlerRLSRegister(Handler, RLSRegister): # {{{
