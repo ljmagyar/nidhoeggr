@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.43 2004/03/09 21:48:36 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.44 2004/03/09 22:30:04 ridcully Exp $"
 
 copyright = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -677,7 +677,7 @@ class RaceListServer(SocketServer.ThreadingTCPServer, StopableThread): # {{{
 		StopableThread.__init__(self)
 
 		self.allow_reuse_address = 1
-		SocketServer.ThreadingTCPServer.__init__(self,("",config.racelistport),ServerRequestHandler)
+		SocketServer.ThreadingTCPServer.__init__(self,("",config.racelistport),RaceListServerRequestHandler)
 
 		self._racelist = racelist
 		self._serverlist = serverlist
@@ -698,7 +698,6 @@ class RaceListServer(SocketServer.ThreadingTCPServer, StopableThread): # {{{
 		if __debug__:
 			self._addRequestHandler(request.HandlerHelp(self))
 
-		self._requests_rwlock = ReadWriteLock()
 		self._load = 0
 		self._requests = 0
 		self._lastloadsampletimestamp = time.time()
@@ -710,11 +709,7 @@ class RaceListServer(SocketServer.ThreadingTCPServer, StopableThread): # {{{
 
 	def _join(self):
 		log(Log.INFO,"shutting down racelist server port %s:%d" % (config.servername, config.racelistport))
-		self._requests_rwlock.acquire_write()
-		try:
-			self.server_close()
-		finally:
-			self._requests_rwlock.release_write()
+		self.server_close()
 
 	def _addRequestHandler(self,handler):
 		self._requesthandlers[handler.command] = handler
@@ -742,7 +737,7 @@ class RaceListServer(SocketServer.ThreadingTCPServer, StopableThread): # {{{
 			log(Log.INFO,"current load: %s" % self._load)
 # }}}
 
-class ServerRequestHandler(SocketServer.StreamRequestHandler, Middleware): # {{{
+class RaceListServerRequestHandler(SocketServer.StreamRequestHandler, Middleware): # {{{
 
 	OK = Error(Error.OK,'OK')
 
@@ -750,13 +745,9 @@ class ServerRequestHandler(SocketServer.StreamRequestHandler, Middleware): # {{{
 		log(Log.DEBUG, "connection from %s:%d" % self.client_address )
 
 		try:
-			self.server._requests_rwlock.acquire_read()
-			try:
-				request = self.read()
-				result = self.server.handleRequest(self.client_address,request)
-				self.reply(self.OK, result)
-			finally:
-				self.server._requests_rwlock.release_read()
+			request = self.read()
+			result = self.server.handleRequest(self.client_address,request)
+			self.reply(self.OK, result)
 		except Error, e:
 			# racelist errors are logged and sent to the client
 			log(Log.ERROR,e)
@@ -861,9 +852,9 @@ class Server: # {{{
 		log(Log.INFO,"shutting down server");
 		self._inshutdown = 1
 		log(Log.INFO,"waiting for broadcast server");
-		self._broadcastserver.join()
+		self._broadcastserver.join(1.0)
 		log(Log.INFO,"waiting for racelist server");
-		self._racelistserver.join()
+		self._racelistserver.join(1.0)
 		log(Log.INFO,"waiting for serverlist");
 		self._serverlist.join()
 		log(Log.INFO,"waiting for racelist");

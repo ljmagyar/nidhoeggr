@@ -114,8 +114,8 @@ class StopableThread(threading.Thread): # {{{
 		"""
 		initiate a graceful shutdown of the cleaning thread
 		"""
-		self._join()
 		self._stopevent.set()
+		self._join()
 		threading.Thread.join(self,timeout)
 
 	def run(self):

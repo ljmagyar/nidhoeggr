@@ -20,7 +20,7 @@ servername = localhost
 # racelistport = 30197
 
 # port where the server listens for broadcasts from gpl servers
-# broadcastport = 6970
+# broadcastport = 30199
 
 #------------------------------------------------------------------------------
 # timeouts - all values in seconds
