@@ -7,7 +7,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.16 2003/09/19 11:00:17 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.17 2003/10/22 20:02:22 ridcully Exp $"
 
 DEFAULT_RACELISTPORT=27233
 DEFAULT_BROADCASTPORT=6970
@@ -253,7 +253,8 @@ class RaceList(StopableThread): # {{{
 			if self._races.has_key(server_id):
 				if self._races[server_id].client_id!=client_id:
 					raise RaceListProtocolException(401, "authorization required")
-				del self._racesbroadcasts[self._races[server_id].broadcastid]
+				if self._racesbroadcasts.has_key(self._races[server_id].broadcastid):
+					del self._racesbroadcasts[self._races[server_id].broadcastid]
 				del self._races[server_id]
 			else:
 				raise RaceListProtocolException(404, "unknown server_id")
@@ -998,53 +999,8 @@ class RaceListServer(SocketServer.ThreadingTCPServer): # {{{
 		self._addRequestHandler(RaceListRequestHandlerCopyright(self))
 		self._addRequestHandler(RaceListRequestHandlerHelp(self))
 
-		# special code to help development {{{
+		# get the help and write it into an tex file
 		if __debug__:
-			# add some dummy races
-			# user = User("anuniqid","127.0.0.1")
-			# self._racelist.addUser(user)
-			# log(Log.DEBUG, 
-			# 	self.handleRequest(
-			# 		('192.168.212.82',1024),
-			# 		string.join([
-			# 			"host",
-			# 			user.client_id, 
-			# 			"192.168.212.82",
-			# 			"32766", 
-			# 			"elmister", 
-			# 			"nidhoeggr test server", 
-			# 			"info2", 
-			# 			"comment", 
-			# 			"1",
-			# 			"1", 
-			# 			"1", 
-			# 			"0",
-			# 			"1111111",
-			# 			"111",
-			# 			"0",
-			# 			"gpl1965",
-			# 			"0", 
-			# 			"3,84,3,84",
-			# 			"10", 
-			# 			"monaco", 
-			# 			"1", 
-			# 			"30",
-			# 			"3",
-			# 			"1",
-			# 			"1",
-			# 			"a"
-			# 		],'\001')
-			# 	)
-			# )
-			# log(
-			# 	Log.DEBUG, self.handleRequest(
-			# 		('127.0.0.1',1024),
-			# 		string.join([
-			# 			"req_full",
-			# 			user.client_id
-			# 		],'\001')
-			# 	)
-			# )
 			fw = open('commanddoku.tex','w')
 			fw.write( '\\section{Commands}\n\n' )
 			for row in self.handleRequest(('127.0.0.1',1024), string.join([ "help" ],'\001')):
@@ -1066,8 +1022,6 @@ class RaceListServer(SocketServer.ThreadingTCPServer): # {{{
 					fw.write( '\\item {\\it Result:}\\\\\n%s\n' % re.sub(r'_',r'\\_',row[1]) )
 					fw.write( '\\end{description}\n\n' )
 			fw.close()
-			
-		# }}}
 
 	def _addRequestHandler(self,handler):
 		"""
