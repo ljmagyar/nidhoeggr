@@ -66,7 +66,7 @@ def main(argv=None):
 			signal.signal(getattr(signal,sgn), signal.SIG_IGN)
 
 	# set the signals the server listens on for the shutdown
-	shutdownsignals = ( 'SIGHUP', 'SIGINT', 'SIGKILL', 'SIGTERM' )
+	shutdownsignals = ( 'SIGHUP', 'SIGINT', 'SIGTERM' )
 	for sgn in shutdownsignals:
 		if hasattr(signal, sgn):
 			log(Log.INFO, "shutdown on signal '%s'" % sgn)
