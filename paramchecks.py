@@ -1,7 +1,5 @@
 #!/usr/bin/env python2.2
 
-# FIXME: dont use general exceptions here
-
 import string
 
 def check_string(value):
@@ -30,31 +28,23 @@ def check_class(value):
 	return __intrangecheck(value,1,3)
 
 def check_chassisbitfield(value):
-	"""
-	"""
 	return __bitfieldcheck(7,value)
 
 def check_carclassbitfield(value):
-	"""
-	"""
 	return __bitfieldcheck(3,value)
 
 def check_bandwidthfield(value):
-	"""
-	"""
 	fields = string.split(value,',')
 	if len(fields)!=4:
 		return "expect 4 numbers separated with a kommata"
 	try:
 		for field in fields:
 			string.atoi(field)
-	except:
+	except ValueError:
 		return "expect 4 numbers separated with a kommata"
 	return None
 
 def check_ip(value):
-	"""
-	"""
 	fields = string.split(value,'.')
 	if len(fields)!=4:
 		return "expect 4 numbers between 0 and 255 separated with a dot"
@@ -63,19 +53,17 @@ def check_ip(value):
 			num = string.atoi(field)
 			if not 0<=num<=255:
 				return "expect 4 numbers between 0 and 255 separated with a dot"
-	except:
+	except ValueError:
 		return "expect 4 numbers between 0 and 255 separated with a dot"
 	return None
 
 def __intrangecheck(value, min, max):
-	"""
-	"""
 	try:
 		i = string.atoi(value)
 		if not min <= i <= max:
 			return "value is not in valid range (%d-%d)" % (min,max)
-	except:
-		return "value is not boolean (0 or 1)"
+	except ValueError:
+		return "value is not in valid range (%d-%d)" % (min,max)
 	return None
 
 def __bitfieldcheck(length,value):
