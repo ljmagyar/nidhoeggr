@@ -1,6 +1,6 @@
 #!/usr/bin/env python2.2
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.3 2003/05/25 15:12:02 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.4 2003/06/08 14:25:57 ridcully Exp $"
 
 copyright = """
 Copyright 2003 Christoph Frick <rid@gmx.net>
@@ -135,7 +135,6 @@ class RaceList(threading.Thread): # {{{
 		self._stopevent = threading.Event()
 
 		self._users = {}
-		self._users_by_uniqid = {}
 		self._races = {}
 		self._reqfull = []
 
@@ -151,7 +150,6 @@ class RaceList(threading.Thread): # {{{
 		try:
 			if not self._users.has_key(user.client_id):
 				self._users[user.client_id] = user
-				self._users_by_uniqid[user.client_uniqid] = user
 			else:
 				raise RaceListProtocolException(400, "user already registered")
 		finally:
@@ -173,8 +171,8 @@ class RaceList(threading.Thread): # {{{
 	def getUserByUniqId(self,client_uniqid):
 		"""
 		"""
-		if self._users_by_uniqid.has_key(client_uniqid):
-			return self._users_by_uniqid[client_uniqid]
+		if self._users.has_key(client_uniqid):
+			return self._users[client_uniqid]
 		return None
 
 	def addRace(self,race):
@@ -301,11 +299,12 @@ class RaceList(threading.Thread): # {{{
 			self._users = cPickle.load(inf)
 			self._races = cPickle.load(inf)
 			inf.close()
-			self._users_by_uniqid = {}
+			self._users = {}
 			for user in self._users.values():
-				self._users_by_uniqid[user.client_uniqid] = user
+				self._users[user.client_uniqid] = user
 		except Exception,e:
 			log(Log.WARNING, "failed to load racelist state from file '%s': %s" % (filename, e) )
+		self._buildRaceListAsReply()
 
 # }}}
 
@@ -498,7 +497,8 @@ class Driver: # {{{
 class RaceListProtocolException(Exception): # {{{
 	"""
 	"""
-	def __init__(id,description):
+	def __init__(self,id,description):
+		Exception.__init__(self, description)
 		self.id = id
 		self.description = description
 
@@ -509,11 +509,14 @@ class RaceListRequestHandler: # {{{
 	"""
 	PROTOCOL_VERSION="scary v0.1"
 
-	def __init__(self,racelist,name,paramconfig):
+	def __init__(self,racelistserver,name,paramconfig,resultdescription):
 		"""
 		"""
 		self.name = name
-		self._racelist = racelist
+		self.paramconfig = paramconfig
+		self.resultdescription = resultdescription
+		self._racelistserver = racelistserver
+		self._racelist = racelistserver._racelist
 		self._keys = []
 		self._checks = []
 		for param in paramconfig:
@@ -627,14 +630,14 @@ class RaceListRequestHandler: # {{{
 class RaceListRequestHandlerLogin(RaceListRequestHandler): # {{{
 	"""
 	"""
-	def __init__(self,racelist):
+	def __init__(self,racelistserver):
 		"""
 		"""
-		RaceListRequestHandler.__init__(self, racelist, "login", [
+		RaceListRequestHandler.__init__(self, racelistserver, "login", [
 			"protocol_version:string",
 			"client_version:string",
 			"client_uniqid:string"
-		])
+		], 'protocol version, server version, client id for further requests, ip the connection came from')
 
 	def _handleRequest(self,client_address,params):
 		"""
@@ -657,10 +660,10 @@ class RaceListRequestHandlerLogin(RaceListRequestHandler): # {{{
 class RaceListRequestHandlerHost(RaceListRequestHandler): # {{{
 	"""
 	"""
-	def __init__(self, racelist):
+	def __init__(self, racelistserver):
 		"""
 		"""
-		RaceListRequestHandler.__init__(self, racelist, "host", [
+		RaceListRequestHandler.__init__(self, racelistserver, "host", [
 			"client_id:string", 
 			"ip:ip", 
 			"joinport:suint", 
@@ -682,7 +685,7 @@ class RaceListRequestHandlerHost(RaceListRequestHandler): # {{{
 			"trackdir:string", 
 			"racetype:suint", 
 			"praclength:suint"
-		])
+		], 'created server id for the race')
 
 	def _handleRequest(self,client_address,params):
 		"""
@@ -697,12 +700,12 @@ class RaceListRequestHandlerHost(RaceListRequestHandler): # {{{
 class RaceListRequestHandlerReqFull(RaceListRequestHandler): # {{{
 	"""
 	"""
-	def __init__(self, racelist):
+	def __init__(self, racelistserver):
 		"""
 		"""
-		RaceListRequestHandler.__init__(self, racelist, "req_full", [
+		RaceListRequestHandler.__init__(self, racelistserver, "req_full", [
 			"client_id:string"
-		])
+		], 'racelist in the following form: each like starting with R is a race - the following lines starting with D are the drivers')
 
 	def _handleRequest(self,client_address,params):
 		"""
@@ -716,10 +719,10 @@ class RaceListRequestHandlerReqFull(RaceListRequestHandler): # {{{
 class RaceListRequestHandlerJoin(RaceListRequestHandler): # {{{
 	"""
 	"""
-	def __init__(self, racelist):
+	def __init__(self, racelistserver):
 		"""
 		"""
-		RaceListRequestHandler.__init__(self, racelist, "join", [
+		RaceListRequestHandler.__init__(self, racelistserver, "join", [
 			"server_id:string", 
 			"client_id:string", 
 			"firstname:string", 
@@ -729,7 +732,7 @@ class RaceListRequestHandlerJoin(RaceListRequestHandler): # {{{
 			"mod_id:string", 
 			"nationality:suint", 
 			"helmet_colour:suint"
-		])
+		], 'void')
 
 	def _handleRequest(self,client_address,params):
 		"""
@@ -744,13 +747,13 @@ class RaceListRequestHandlerJoin(RaceListRequestHandler): # {{{
 class RaceListRequestHandlerLeave(RaceListRequestHandler): # {{{
 	"""
 	"""
-	def __init__(self, racelist):
+	def __init__(self, racelistserver):
 		"""
 		"""
-		RaceListRequestHandler.__init__(self, racelist, "leave", [
+		RaceListRequestHandler.__init__(self, racelistserver, "leave", [
 			"server_id:string", 
 			"client_id:string"
-		])
+		], 'void')
 
 	def _handleRequest(self,client_address,params):
 		"""
@@ -763,13 +766,13 @@ class RaceListRequestHandlerLeave(RaceListRequestHandler): # {{{
 class RaceListRequestHandlerEndHost(RaceListRequestHandler): # {{{
 	"""
 	"""
-	def __init__(self, racelist):
+	def __init__(self, racelistserver):
 		"""
 		"""
-		RaceListRequestHandler.__init__(self, racelist, "endhost", [
+		RaceListRequestHandler.__init__(self, racelistserver, "endhost", [
 			"server_id:string",
 			"client_id:string"
-		])
+		], 'void')
 
 	def _handleRequest(self,client_address,params):
 		"""
@@ -782,12 +785,12 @@ class RaceListRequestHandlerEndHost(RaceListRequestHandler): # {{{
 class RaceListRequestHandlerReport(RaceListRequestHandler): # {{{
 	"""
 	"""
-	def __init__(self, racelist):
+	def __init__(self, racelistserver):
 		"""
 		"""
-		RaceListRequestHandler.__init__(self, racelist, "report", [
+		RaceListRequestHandler.__init__(self, racelistserver, "report", [
 			"server_id:string"
-		])
+		], 'void')
 
 	def _handleRequest(self,client_address,params):
 		"""
@@ -800,10 +803,10 @@ class RaceListRequestHandlerReport(RaceListRequestHandler): # {{{
 class RaceListRequestHandlerCopyright(RaceListRequestHandler): # {{{
 	"""
 	"""
-	def __init__(self, racelist):
+	def __init__(self, racelistserver):
 		"""
 		"""
-		RaceListRequestHandler.__init__(self, racelist, "copyright", [])
+		RaceListRequestHandler.__init__(self, racelistserver, "copyright", [], 'copyright notice')
 
 	def _handleRequest(self,client_address,params):
 		"""
@@ -815,16 +818,21 @@ class RaceListRequestHandlerCopyright(RaceListRequestHandler): # {{{
 class RaceListRequestHandlerHelp(RaceListRequestHandler): # {{{
 	"""
 	"""
-	def __init__(self, racelist):
+	def __init__(self, racelistserver):
 		"""
 		"""
-		RaceListRequestHandler.__init__(self, racelist, "help", [])
+		RaceListRequestHandler.__init__(self, racelistserver, "help", [], 'for each command a line starting with command, then followed by a line for each param and finally a line starting with result, explaining the data sent back to the client')
 
 	def _handleRequest(self,client_address,params):
 		"""
 		"""
-		# TODO
-		raise RaceListProtocolException(501, "not yet implemented")
+		ret = []
+		for rh in self._racelistserver._requesthandlers.values():
+			ret.append(['command', rh.name])
+			for pc in rh.paramconfig:
+				ret.append(['param', pc])
+			ret.append(['result', rh.resultdescription])
+		return ret
 
 # }}}
 
@@ -844,21 +852,22 @@ class RaceListServer(SocketServer.ThreadingTCPServer): # {{{
 		self._racelist.start()
 
 		self._requesthandlers = {}
-		self._addRequestHandler(RaceListRequestHandlerLogin(self._racelist))
-		self._addRequestHandler(RaceListRequestHandlerHost(self._racelist))
-		self._addRequestHandler(RaceListRequestHandlerReqFull(self._racelist))
-		self._addRequestHandler(RaceListRequestHandlerJoin(self._racelist))
-		self._addRequestHandler(RaceListRequestHandlerLeave(self._racelist))
-		self._addRequestHandler(RaceListRequestHandlerEndHost(self._racelist))
-		self._addRequestHandler(RaceListRequestHandlerReport(self._racelist))
-		self._addRequestHandler(RaceListRequestHandlerCopyright(self._racelist))
-		self._addRequestHandler(RaceListRequestHandlerHelp(self._racelist))
+		self._addRequestHandler(RaceListRequestHandlerLogin(self))
+		self._addRequestHandler(RaceListRequestHandlerHost(self))
+		self._addRequestHandler(RaceListRequestHandlerReqFull(self))
+		self._addRequestHandler(RaceListRequestHandlerJoin(self))
+		self._addRequestHandler(RaceListRequestHandlerLeave(self))
+		self._addRequestHandler(RaceListRequestHandlerEndHost(self))
+		self._addRequestHandler(RaceListRequestHandlerReport(self))
+		self._addRequestHandler(RaceListRequestHandlerCopyright(self))
+		self._addRequestHandler(RaceListRequestHandlerHelp(self))
 
 		# special code to help development {{{
 		if __debug__:
 			# add some dummy races
 			user = User("anuniqid","127.0.0.1")
 			self._racelist.addUser(user)
+			"""
 			log(Log.DEBUG, 
 				self.handleRequest(
 					('127.0.0.1',1024),
@@ -1004,12 +1013,21 @@ class RaceListServer(SocketServer.ThreadingTCPServer): # {{{
 					],'\001')
 				)
 			)
+			"""
 			log(
 				Log.DEBUG, self.handleRequest(
 					('127.0.0.1',1024),
 					string.join([
 						"req_full",
 						user.client_id
+					],'\001')
+				)
+			)
+			log(
+				Log.DEBUG, self.handleRequest(
+					('127.0.0.1',1024),
+					string.join([
+						"help"
 					],'\001')
 				)
 			)
@@ -1120,8 +1138,7 @@ class Nidhoeggr: # {{{
 	- support for the old way of reporting current race stats - like it was
 	  done with vroc
 	- interface to BigBrother
-	- webinterface to display current stuff
-	- prepare the checks to the params
+	- writing a client for this protocol
 	"""
 	def __init__(self):
 		"""
