@@ -8,7 +8,7 @@ import nidhoeggr
 
 def handle_shutdown(signal,frame):
 	global server
-	server.stopServer()
+	server.stop()
 	sys.exit(0)
 
 def main(argv=None):
@@ -50,11 +50,11 @@ def main(argv=None):
 		return 2
 	
 	global server 
-	server = nidhoeggr.RaceListServer(racelistport,broadcastport)
+	server = nidhoeggr.Server(racelistport,broadcastport)
 	signal.signal(signal.SIGINT, handle_shutdown)
 	signal.signal(signal.SIGTERM, handle_shutdown)
 	signal.signal(signal.SIGKILL, handle_shutdown)
-	server.startServer()
+	server.start()
 
 if __name__=="__main__":
 	sys.exit(main())

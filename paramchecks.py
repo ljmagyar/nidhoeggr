@@ -1,5 +1,9 @@
 #!/usr/bin/env python2.2
 
+# FIXME: dont use general exceptions here
+
+import string
+
 def check_string(value):
 	"""
 	"""

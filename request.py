@@ -4,6 +4,7 @@ PROTOCOL_VERSION="scary v0.1"
 
 import nidhoeggr
 import paramchecks
+import socket
 
 class RequestParam: # {{{
 	""""""
@@ -248,7 +249,7 @@ class RequestHandler: # {{{
 		"""
 		"""
 		if len(self.paramconfig) != len(values):
-			raise nidhoeggr.RaceListProtocolException(400,"param amount mismatch (expecting: %s)"%self._keys)
+			raise nidhoeggr.RaceListProtocolException(400,"param amount mismatch")
 		params = {'client_address':client_address}
 		for i in range(len(self.paramconfig)):
 			value = values[i]
@@ -411,4 +412,4 @@ class RequestHandlerHelp(RequestHandler, RequestHelp): # {{{
 
 # }}}
 
-
+# vim:fdm=marker:

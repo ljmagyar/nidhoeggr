@@ -7,7 +7,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.21 2003/11/05 21:31:38 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.22 2003/11/08 15:37:05 ridcully Exp $"
 
 DEFAULT_RACELISTPORT=27233
 DEFAULT_BROADCASTPORT=6970
@@ -31,6 +31,7 @@ import cPickle
 import re
 import select
 import time
+import socket
 
 import tools
 from tools import Log, log
@@ -138,12 +139,12 @@ class RaceList(tools.StopableThread): # {{{
 		"""
 		self._races_rwlock.acquire_write()
 		try:
+			for race in self._races.values():
+				race.removeDriver(driver.client_id)
 			if self._races.has_key(server_id):
 				self._races[server_id].addDriver(driver)
 			else:
 				raise RaceListProtocolException(404, "unknown server_id")
-			for race in self._races.values():
-				race.removeDriver(driver.client_id)
 			self._buildRaceListAsReply()
 		finally:
 			self._races_rwlock.release_write()
@@ -286,7 +287,7 @@ class Race(tools.IdleWatcher): # {{{
 		try:
 			if self.drivers.has_key(client_id):
 				del self.drivers[client_id]
-			# silently ignore the request, if there is not driver with this id in the race
+			# silently ignore the request, if there is no driver with this id in the race
 		finally:
 			self._rwlock.release_write()
 			
@@ -463,7 +464,7 @@ class RaceListProtocolException(Exception): # {{{
 
 # }}}
 
-class RaceListServer(SocketServer.ThreadingTCPServer): # {{{
+class Server(SocketServer.ThreadingTCPServer): # {{{
 	"""
 	"""
 
@@ -474,11 +475,11 @@ class RaceListServer(SocketServer.ThreadingTCPServer): # {{{
 		log(Log.INFO,"init %s on port %d" % (SERVER_VERSION,racelistport))
 		
 		self.allow_reuse_address = 1
-		SocketServer.ThreadingTCPServer.__init__(self,("",racelistport),RaceListServerRequestHandler)
+		SocketServer.ThreadingTCPServer.__init__(self,("",racelistport),ServerRequestHandler)
 
 		self._racelist = RaceList()
 
-		self._broadcastserver = RaceListBroadCastServer(self._racelist,broadcastport)
+		self._broadcastserver = BroadCastServer(self._racelist,broadcastport)
 
 		self._requesthandlers = {}
 		self._addRequestHandler(request.RequestHandlerLogin(self))
@@ -495,7 +496,7 @@ class RaceListServer(SocketServer.ThreadingTCPServer): # {{{
 		if __debug__:
 			fw = open('commanddoku.tex','w')
 			fw.write( '\\section{Commands}\n\n' )
-			for row in self.handleRequest(('127.0.0.1',1024), string.join([ "help" ],'\001')):
+			for row in self.handleRequest(('127.0.0.1',1024), [["help"]]):
 				if row[0]=='command':
 					fw.write( '\\subsection{%s}\n\n' % re.sub(r'_',r'\\_',row[1]) )
 					fw.write( '\\begin{description}\n' )
@@ -520,29 +521,28 @@ class RaceListServer(SocketServer.ThreadingTCPServer): # {{{
 		"""
 		self._requesthandlers[handler.command] = handler
 
-	def handleRequest(self,client_address,data):
+	def handleRequest(self,client_address,request):
 		"""
 		"""
-		requestdata = data.split("\001")
-		if len(requestdata)==0:
+		if len(request)==0 or len(request[0])==0:
 			raise RaceListProtocolException(400, "empty request")
 		
-		requestname = requestdata[0]
+		command = request[0][0]
 		if __debug__:
-			log(Log.DEBUG,"request: "+str(requestdata))
+			log(Log.DEBUG,"request: "+str(request))
 
-		if not self._requesthandlers.has_key(requestname):
+		if not self._requesthandlers.has_key(command):
 			raise RaceListProtocolException(400, "unknown command")
-		return self._requesthandlers[requestname].handleRequest(client_address,requestdata[1:])
+		return self._requesthandlers[command].handleRequest(client_address,request[0][1:])
 
-	def startServer(self):
+	def start(self):
 		"""
 		"""
 		self._racelist.start()
 		self._broadcastserver.start()
 		self.serve_forever()
 
-	def stopServer(self):
+	def stop(self):
 		"""
 		"""
 		log(Log.INFO,"shutting down server");
@@ -553,7 +553,7 @@ class RaceListServer(SocketServer.ThreadingTCPServer): # {{{
 
 # }}}
 
-class RaceListServerRequestHandler(SocketServer.StreamRequestHandler): # {{{
+class Middleware: # {{{
 	"""
 	"""
 
@@ -565,31 +565,7 @@ class RaceListServerRequestHandler(SocketServer.StreamRequestHandler): # {{{
 	CELLSEPARATOR="\001"
 	ROWSEPARATOR="\002"
 
-	def handle(self):
-		"""
-		"""
-		log(Log.INFO, "connection from %s:%d" % self.client_address )
-
-		try:
-			data = self.readMessage()
-			result = self.server.handleRequest(self.client_address,data)
-			self.sendResult([200,'OK'],result)
-		except RaceListProtocolException, e:
-			# racelist errors are logged and sent to the client
-			log(Log.ERROR,e)
-			self.sendError(e)
-		except IOError, e:
-			# something went wrong with the connection - we cant
-			# help here just log and bailout
-			log(Log.ERROR, e)
-		except Exception, e:
-			# this are error that should not be - try to send an
-			# error to the client, that something went wrong and
-			# re-raise the exception again
-			self.sendError(RaceListProtocolException(500, "internal server error"))
-			raise
-
-	def readMessage(self):
+	def readData(self):
 		"""
 		"""
 		clientident = self.rfile.read(4)
@@ -640,7 +616,7 @@ class RaceListServerRequestHandler(SocketServer.StreamRequestHandler): # {{{
 
 		return data
 
-	def writeMessage(self,data):
+	def sendData(self,data):
 		"""
 		"""
 		mode = self.MODE_CLEARTEXT
@@ -652,19 +628,60 @@ class RaceListServerRequestHandler(SocketServer.StreamRequestHandler): # {{{
 
 		self.wfile.write(struct.pack(">4scL", self.CLIENTINDENT, mode, len(data))+data)
 
-	def sendError(self,exception):
-		self.sendResult([exception.id,exception.description],[])
-
-	def sendResult(self,status,reply):
-		result = "%d%s%s" % (status[0],self.CELLSEPARATOR,status[1])
+	def send(self,reply,exception=None):
+		"""
+		"""
+		result = []
+		if exception is not None:
+			result.append("%d%s%s" % (exception.id,self.CELLSEPARATOR,exception.description))
 		for list in reply:
-			result += "%s%s" % (self.ROWSEPARATOR,string.join(list,self.CELLSEPARATOR))
-		self.writeMessage(result)
+			result.append(string.join(list,self.CELLSEPARATOR))
+		self.sendData(string.join(result,self.ROWSEPARATOR))
 
+	def read(self):
+		"""
+		"""
+		data = self.readData()
+		request = []
+		for row in data.split(self.ROWSEPARATOR):
+			request.append(row.split(self.CELLSEPARATOR))
+		return request
 
 # }}}
 
-class RaceListBroadCastServer(SocketServer.ThreadingUDPServer, tools.StopableThread): # {{{
+class ServerRequestHandler(SocketServer.StreamRequestHandler, Middleware): # {{{
+	"""
+	"""
+
+	OK = RaceListProtocolException(200,'OK')
+
+	def handle(self):
+		"""
+		"""
+		log(Log.INFO, "connection from %s:%d" % self.client_address )
+
+		try:
+			request = self.read()
+			result = self.server.handleRequest(self.client_address,request)
+			self.send(result, self.OK)
+		except RaceListProtocolException, e:
+			# racelist errors are logged and sent to the client
+			log(Log.ERROR,e)
+			self.send([], e)
+		except IOError, e:
+			# something went wrong with the connection - we cant
+			# help here just log and bailout
+			log(Log.ERROR, e)
+		except Exception, e:
+			# this are error that should not be - try to send an
+			# error to the client, that something went wrong and
+			# re-raise the exception again
+			self.send([], RaceListProtocolException(500, "internal server error"))
+			raise
+
+# }}}
+
+class BroadCastServer(SocketServer.ThreadingUDPServer, tools.StopableThread): # {{{
 	"""
 	"""
 
@@ -677,7 +694,7 @@ class RaceListBroadCastServer(SocketServer.ThreadingUDPServer, tools.StopableThr
 		
 		self.racelist = racelist
 		self.allow_reuse_address = 1
-		SocketServer.ThreadingUDPServer.__init__(self,("",broadcastport),RaceListBroadCastServerRequestHandler)
+		SocketServer.ThreadingUDPServer.__init__(self,("",broadcastport),BroadCastServerRequestHandler)
 
 	def _run(self):
 		"""
@@ -687,10 +704,9 @@ class RaceListBroadCastServer(SocketServer.ThreadingUDPServer, tools.StopableThr
 			self.handle_request()
 # }}}
 
-class RaceListBroadCastServerRequestHandler(SocketServer.DatagramRequestHandler): # {{{
+class BroadCastServerRequestHandler(SocketServer.DatagramRequestHandler): # {{{
 	"""
 	"""
-
 	def handle(self):
 		"""
 		"""
@@ -711,6 +727,43 @@ class RaceListBroadCastServerRequestHandler(SocketServer.DatagramRequestHandler)
 		except Exception, e:
 			# can not much do about it
 			log(Log.DEBUG, e)
+
+# }}}
+
+class Client: # {{{
+	"""
+	"""
+
+	def __init__(self, client_uniq_id, server, port=DEFAULT_RACELISTPORT):
+		"""
+		"""
+		self.server_address = (server,port)
+		
+		loginrequest = RequestSender(self, [['login', request.PROTOCOL_VERSION, SERVER_VERSION, client_uniq_id]])
+		self.client_id = loginrequest.result[0][2]
+
+# }}}
+
+class RequestSender(Middleware): # {{{
+	"""
+	"""
+
+	def __init__(self, client, params):
+		"""
+		"""
+		s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		s.connect(client.server_address)
+		self.rfile = s.makefile('rb')
+		self.wfile = s.makefile('wb')
+		self.send(params)
+		self.wfile.close()
+		result = self.read()
+		self.rfile.close()
+		s.close()
+		self.status = RaceListProtocolException(int(result[0][0]), result[0][1])
+		if self.status.id <> 200:
+			raise self.status
+		self.result = result[1:]
 
 # }}}
 
