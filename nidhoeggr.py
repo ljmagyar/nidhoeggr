@@ -1,6 +1,6 @@
 #!/usr/bin/env python2.2
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.1 2003/04/24 23:36:03 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.2 2003/05/04 12:46:54 ridcully Exp $"
 
 copyright = """
 Copyright 2003 Christoph Frick <rid@gmx.net>
@@ -100,13 +100,13 @@ class ReadWriteLock: # {{{
 
 # }}}
 
-class CleanUp: # {{{
+class IdleWatcher: # {{{
 	"""
 	"""
-	def __init__(self,timeout=3600.0):
+	def __init__(self,timeout):
 		"""
 		"""
-		self.timeout = timeout * 1000
+		self.timeout = timeout
 		self.setActive()
 	
 	def setActive(self):
@@ -119,7 +119,7 @@ class CleanUp: # {{{
 		"""
 		return self.lastactivity + self.timeout < time.time()
 
-# CleanUp }}}
+# IdleWatcher }}}
 
 class RaceList(threading.Thread): # {{{
 	"""
@@ -309,7 +309,7 @@ class RaceList(threading.Thread): # {{{
 
 # }}}
 
-class Race(CleanUp): # {{{
+class Race(IdleWatcher): # {{{
 	"""
 	"""
 	
@@ -326,7 +326,7 @@ class Race(CleanUp): # {{{
 		self._initstateless()
 
 	def _initstateless(self):
-		CleanUp.__init__(self,900.0)
+		IdleWatcher.__init__(self,900.0)
 		self._rwlock = ReadWriteLock()
 
 	def addDriver(self,driver):
@@ -408,14 +408,14 @@ class Race(CleanUp): # {{{
 			
 # }}}
 
-class User(CleanUp): # {{{
+class User(IdleWatcher): # {{{
 	"""
 	"""
 
 	def __init__(self,client_uniqid,outsideip):
 		"""
 		"""
-		CleanUp.__init__(self)
+		IdleWatcher.__init__(self, 3600.0)
 
 		self.client_uniqid = client_uniqid
 		self.outsideip = outsideip
