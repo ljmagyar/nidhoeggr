@@ -1,5 +1,3 @@
-#!/usr/bin/env python2.2
-
 PROTOCOL_VERSION="scary v0.1"
 
 import nidhoeggr

@@ -1,5 +1,3 @@
-#!/usr/bin/env python2.2
-
 import string
 
 def check_string(value):

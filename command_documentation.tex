@@ -1,5 +1,93 @@
 \section{Commands}
 
+\subsection{join}
+
+\begin{description}
+\item {\it Description:}\\
+The client with the given id joins the server with the given id. Several informations about the driver itself are also submited for the list of races and their drivers.
+\item {\it Parmameters:}
+\begin{itemize}
+\item server\_id
+\item client\_id
+\item firstname
+\item lastname
+\item class\_id
+\item team\_id
+\item mod\_id
+\item nationality
+\item helmet\_colour
+\end{itemize}
+\item {\it Result:}\\
+Nothing.
+\end{description}
+
+\subsection{leave}
+
+\begin{description}
+\item {\it Description:}\\
+Removes the client with the given id from the server with the given id.
+\item {\it Parmameters:}
+\begin{itemize}
+\item server\_id
+\item client\_id
+\end{itemize}
+\item {\it Result:}\\
+Nothing.
+\end{description}
+
+\subsection{endhost}
+
+\begin{description}
+\item {\it Description:}\\
+Stops the hosting of the race with the given id.
+\item {\it Parmameters:}
+\begin{itemize}
+\item server\_id
+\item client\_id
+\end{itemize}
+\item {\it Result:}\\
+Nothing.
+\end{description}
+
+\subsection{report}
+
+\begin{description}
+\item {\it Description:}\\
+Updates the informations of the given server.
+\item {\it Parmameters:}
+\begin{itemize}
+\item server\_id
+\end{itemize}
+\item {\it Result:}\\
+Nothing.
+\end{description}
+
+\subsection{copyright}
+
+\begin{description}
+\item {\it Description:}\\
+Returns a copyright notice about the protocol and the server.
+\item {\it Parmameters:}
+\begin{itemize}
+\item None
+\end{itemize}
+\item {\it Result:}\\
+String holding the text of the copyright notice.
+\end{description}
+
+\subsection{help}
+
+\begin{description}
+\item {\it Description:}\\
+Returns a list of all implemented commands.
+\item {\it Parmameters:}
+\begin{itemize}
+\item None
+\end{itemize}
+\item {\it Result:}\\
+For each command a line starting with command, then followed by a line for each param and finally a line starting with result, explaining the data sent back to the client.
+\end{description}
+
 \subsection{login}
 
 \begin{description}
@@ -116,93 +204,5 @@ Starts hosting of a race. The given informations are used to describe the race a
 \end{itemize}
 \item {\it Result:}\\
 A unique id for the server, that will be used to update the hosting and race informations and also by the clients to join/leave the race.
-\end{description}
-
-\subsection{join}
-
-\begin{description}
-\item {\it Description:}\\
-The client with the given id joins the server with the given id. Several informations about the driver itself are also submited for the list of races and their drivers.
-\item {\it Parmameters:}
-\begin{itemize}
-\item server\_id
-\item client\_id
-\item firstname
-\item lastname
-\item class\_id
-\item team\_id
-\item mod\_id
-\item nationality
-\item helmet\_colour
-\end{itemize}
-\item {\it Result:}\\
-Nothing.
-\end{description}
-
-\subsection{leave}
-
-\begin{description}
-\item {\it Description:}\\
-Removes the client with the given id from the server with the given id.
-\item {\it Parmameters:}
-\begin{itemize}
-\item server\_id
-\item client\_id
-\end{itemize}
-\item {\it Result:}\\
-Nothing.
-\end{description}
-
-\subsection{endhost}
-
-\begin{description}
-\item {\it Description:}\\
-Stops the hosting of the race with the given id.
-\item {\it Parmameters:}
-\begin{itemize}
-\item server\_id
-\item client\_id
-\end{itemize}
-\item {\it Result:}\\
-Nothing.
-\end{description}
-
-\subsection{report}
-
-\begin{description}
-\item {\it Description:}\\
-Updates the informations of the given server.
-\item {\it Parmameters:}
-\begin{itemize}
-\item server\_id
-\end{itemize}
-\item {\it Result:}\\
-Nothing.
-\end{description}
-
-\subsection{copyright}
-
-\begin{description}
-\item {\it Description:}\\
-Returns a copyright notice about the protocol and the server.
-\item {\it Parmameters:}
-\begin{itemize}
-\item None
-\end{itemize}
-\item {\it Result:}\\
-String holding the text of the copyright notice.
-\end{description}
-
-\subsection{help}
-
-\begin{description}
-\item {\it Description:}\\
-Returns a list of all implemented commands.
-\item {\it Parmameters:}
-\begin{itemize}
-\item None
-\end{itemize}
-\item {\it Result:}\\
-For each command a line starting with command, then followed by a line for each param and finally a line starting with result, explaining the data sent back to the client.
 \end{description}
 

@@ -1,13 +1,10 @@
-#!/usr/bin/env python2.2
-
 # TODO
 # - interface for Tom's secur to report racedata
 # - interface to BigBrother
-# - writing a client for this protocol
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.25 2003/11/09 15:08:26 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.26 2003/11/09 16:02:25 ridcully Exp $"
 
 DEFAULT_RACELISTPORT=27233
 DEFAULT_BROADCASTPORT=6970
@@ -28,7 +25,6 @@ import SocketServer
 import random
 import string
 import cPickle
-import re
 import select
 import time
 import socket
@@ -494,30 +490,6 @@ class Server(SocketServer.ThreadingTCPServer): # {{{
 		self._addRequestHandler(request.RequestHandlerReport(self))
 		self._addRequestHandler(request.RequestHandlerCopyright(self))
 		self._addRequestHandler(request.RequestHandlerHelp(self))
-
-		# get the help and write it into an tex file
-		if __debug__:
-			fw = open('commanddoku.tex','w')
-			fw.write( '\\section{Commands}\n\n' )
-			for row in self.handleRequest(('127.0.0.1',1024), [["help"]]):
-				if row[0]=='command':
-					fw.write( '\\subsection{%s}\n\n' % re.sub(r'_',r'\\_',row[1]) )
-					fw.write( '\\begin{description}\n' )
-				elif row[0]=='description':
-					fw.write( '\\item {\\it Description:}\\\\\n%s\n' % re.sub(r'_',r'\\_',row[1]) )
-					fw.write( '\\item {\\it Parmameters:}\n' )
-					fw.write( '\\begin{itemize}\n' )
-					paramcount = 0
-				elif row[0]=='parameter':
-					fw.write( '\\item %s\n' % re.sub(r'_',r'\\_',row[1]) )
-					paramcount = paramcount + 1
-				elif row[0]=='result':
-					if not paramcount:
-						fw.write( '\\item None\n' )
-					fw.write( '\\end{itemize}\n' )
-					fw.write( '\\item {\\it Result:}\\\\\n%s\n' % re.sub(r'_',r'\\_',row[1]) )
-					fw.write( '\\end{description}\n\n' )
-			fw.close()
 
 	def _addRequestHandler(self,handler):
 		"""

@@ -1,5 +1,3 @@
-#!/usr/bin/env python2.2
-
 import sys
 import time
 import threading

@@ -1,7 +1,6 @@
-VERSION=0.4
+VERSION=0.5
 
-SRC=scary.tex commanddoku.tex
-TARSRC=$(SRC) nidhoeggr.py Makefile
+TARSRC=Makefile scary.pdf scary.tex commands.tex debugclient.py nidhoeggr.py paramchecks.py request.py server.py tools.py
 TARDIR=nidhoeggr-$(VERSION)
 TARNAME=$(TARDIR).tar.gz
 
@@ -10,11 +9,13 @@ all:
 
 tar:$(TARNAME)
 
-scary.dvi:$(SRC)
-	latex $<
+scary.tex:commands.tex
 
-scary.pdf:$(SRC)
-	pdflatex $<
+scary.dvi:scary.tex
+	latex scary.tex
+
+scary.pdf:scary.tex
+	pdflatex scary.tex
 
 $(TARNAME):$(TARSRC)
 	mkdir $(TARDIR)
