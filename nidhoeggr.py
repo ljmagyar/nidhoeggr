@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.33 2004/02/06 13:16:11 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.33.2.1 2004/02/29 14:11:59 ridcully Exp $"
 
 DEFAULT_RACELISTPORT=30197
 DEFAULT_BROADCASTPORT=6970
@@ -54,7 +54,7 @@ class RaceList(tools.StopableThread): # {{{
 		self._racesbroadcasts = {}
 		self._reqfull = []
 
-		self.__state = RaceList.STATE_START
+		self._state = RaceList.STATE_START
 
 		self._users_rwlock = tools.ReadWriteLock()
 		self._races_rwlock = tools.ReadWriteLock()
@@ -212,7 +212,7 @@ class RaceList(tools.StopableThread): # {{{
 		"""
 		lurks behind the scenes and cleans the._races and the._users
 		"""
-		if self.__state <> RaceList.STATE_RUN: 
+		if self._state <> RaceList.STATE_RUN: 
 			return
 		currenttime = time.time()
 		usercount = 0
@@ -243,7 +243,7 @@ class RaceList(tools.StopableThread): # {{{
 		"""
 		filename='racelist.cpickle'
 		log(Log.INFO, "store racelist to file '%s'" % filename )
-		self.__state = RaceList.STATE_STOP
+		self._state = RaceList.STATE_STOP
 		self._users_rwlock.acquire_write()
 		self._races_rwlock.acquire_write()
 		try:
@@ -276,7 +276,7 @@ class RaceList(tools.StopableThread): # {{{
 		except Exception,e:
 			log(Log.WARNING, "failed to load racelist state from file '%s': %s" % (filename, e) )
 		self._buildRaceListAsReply()
-		self.__state = RaceList.STATE_RUN
+		self._state = RaceList.STATE_RUN
 
 # }}}
 
@@ -304,7 +304,7 @@ class Race(tools.IdleWatcher): # {{{
 	def _initstateless(self):
 		"""
 		"""
-		tools.IdleWatcher.__init__(self,900.0)
+		tools.IdleWatcher.__init__(self,300.0)
 		self._rwlock = tools.ReadWriteLock()
 
 	def hasDriver(self, client_id):
