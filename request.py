@@ -1,5 +1,7 @@
 #!/usr/bin/env python2.2
 
+PROTOCOL_VERSION="scary v0.1"
+
 import nidhoeggr
 import paramchecks
 
@@ -273,18 +275,18 @@ class RequestHandlerLogin(RequestHandler, RequestLogin): # {{{
 		RequestHandler.__init__(self, racelistserver)
 
 	def _handleRequest(self,client_address,params):
-		if params["protocol_version"]!=self.PROTOCOL_VERSION:
+		if params["protocol_version"]!=PROTOCOL_VERSION:
 			if __debug__:
-				raise nidhoeggr.RaceListProtocolException(400, "wrong protcol version - expected '%s'"%self.PROTOCOL_VERSION)
+				raise nidhoeggr.RaceListProtocolException(400, "wrong protcol version - expected '%s'"%PROTOCOL_VERSION)
 			else:
 				raise nidhoeggr.RaceListProtocolException(400, "wrong protcol version")
 
 		user = self._racelist.getUserByUniqId(params["client_uniqid"])
 		if user is None:
-			user = User(params["client_uniqid"],client_address[0])
+			user = nidhoeggr.User(params["client_uniqid"],client_address[0])
 			self._racelist.addUser(user)
 
-		return [[self.PROTOCOL_VERSION,SERVER_VERSION,user.client_id,user.outsideip]]
+		return [[PROTOCOL_VERSION,nidhoeggr.SERVER_VERSION,user.client_id,user.outsideip]]
 
 # }}}
 
@@ -297,11 +299,11 @@ class RequestHandlerHost(RequestHandler, RequestHost): # {{{
 
 	def _handleRequest(self,client_address,params):
 		self._racelist.getUser(params["client_id"])
-		race = Race(params)
+		race = nidhoeggr.Race(params)
 		self._racelist.addRace(race)
 
 		user = self._racelist.getUser(params["client_id"])
-		driver = Driver(user,params)
+		driver = nidhoeggr.Driver(user,params)
 		self._racelist.driverJoinRace(race.server_id,driver)
 
 		return [[race.server_id]]
@@ -331,7 +333,7 @@ class RequestHandlerJoin(RequestHandler, RequestJoin): # {{{
 
 	def _handleRequest(self,client_address,params):
 		user = self._racelist.getUser(params["client_id"])
-		driver = Driver(user,params)
+		driver = nidhoeggr.Driver(user,params)
 		self._racelist.driverJoinRace(params["server_id"],driver)
 		return [[]]
 

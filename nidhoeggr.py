@@ -7,8 +7,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.20 2003/11/05 20:26:50 ridcully Exp $"
-PROTOCOL_VERSION="scary v0.1"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.21 2003/11/05 21:31:38 ridcully Exp $"
 
 DEFAULT_RACELISTPORT=27233
 DEFAULT_BROADCASTPORT=6970
@@ -31,6 +30,7 @@ import string
 import cPickle
 import re
 import select
+import time
 
 import tools
 from tools import Log, log
