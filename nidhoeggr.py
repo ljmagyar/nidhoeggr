@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.49 2004/03/29 08:53:00 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.50 2004/03/29 20:55:29 ridcully Exp $"
 
 __copyright__ = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -261,7 +261,8 @@ class Race(IdleWatcher): # {{{
 		if __debug__:
 			if self.params['ip']=='127.0.0.1':
 				self.params['ip'] = random.choice([ '193.99.144.71', '206.231.101.19', '80.15.238.104', '80.15.238.102' ])
-		self.params["server_id"] = sha.new("%s%s%s%s%s" % (self.params['client_id'], self.params['ip'], self.params['joinport'], time.time(), random.randint(0,1000000))).hexdigest()
+		if not self.params.has_key('server_id'):
+			self.params["server_id"] = sha.new("%s%s%s%s%s" % (self.params['client_id'], self.params['ip'], self.params['joinport'], time.time(), random.randint(0,1000000))).hexdigest()
 		self.params["broadcastid"] = "%s:%s" % (self.params['ip'], self.params['joinport'])
 
 		self.params["sessiontype"] = 0
@@ -346,14 +347,16 @@ class Race(IdleWatcher): # {{{
 # }}}
 
 class User(IdleWatcher): # {{{
-	
 
-	def __init__(self,client_uniqid,outside_ip):
+	def __init__(self,client_uniqid,outside_ip,client_id=None):
 		self.params = {}
 		IdleWatcher.__init__(self, config.user_timeout)
 		self.params['client_uniqid'] = client_uniqid
 		self.params['outside_ip'] = outside_ip
-		self.params['client_id'] = sha.new("%s%s%s" % (client_uniqid, time.time(), random.randint(0,1000000))).hexdigest()
+		if client_id is None:
+			self.params['client_id'] = sha.new("%s%s%s" % (client_uniqid, time.time(), random.randint(0,1000000))).hexdigest()
+		else:
+			self.params['client_id'] = client_id
 
 # }}}
 
@@ -442,7 +445,7 @@ class RLServerList(StopableThread): # {{{
 		self._servers_rwlock.acquire_write()
 		try:
 			if self.hasRLServer(rls_id):
-				return self.getRLServer(rls_id).getUpdate()
+				return self._servers[rls_id].getUpdate()
 			raise Error(Error.AUTHERROR, 'unknown server')
 		finally:
 			self._servers_rwlock.release_write()
@@ -526,7 +529,8 @@ class RLServerList(StopableThread): # {{{
 				continue
 
 			if rls.checkTimeout(ct):
-				log(Log.INFO, "dropping race list server %s (%s:%d) due to a a time out" % (rls.params['rls_id'], rls.params['name'], int(rls.params['port'])))
+				log(Log.INFO, "dropping race list server %s (%s:%d) due to a time out" % (rls.params['rls_id'], rls.params['name'], int(rls.params['port'])))
+				self._servers_rwlock.acquire_write()
 				try:
 					del self._servers[rls_id]
 				finally:
@@ -724,9 +728,10 @@ class RaceListServer(SocketServer.ThreadingTCPServer, StopableThread): # {{{
 
 		self._requesthandlers = {}
 		self._addRequestHandler(request.HandlerLogin(self))
-		self._addRequestHandler(request.HandlerNewUser(self))
+		self._addRequestHandler(request.HandlerDistributedLogin(self))
 		self._addRequestHandler(request.HandlerReqFull(self))
 		self._addRequestHandler(request.HandlerHost(self))
+		self._addRequestHandler(request.HandlerDistributedHost(self))
 		self._addRequestHandler(request.HandlerJoin(self))
 		self._addRequestHandler(request.HandlerLeave(self))
 		self._addRequestHandler(request.HandlerEndHost(self))
