@@ -11,7 +11,10 @@ import nidhoeggr
 
 server = None
 
-def handle_shutdown(signal,frame):
+def handleShutdownSignal(signal,frame):
+	handleShutdown()
+
+def handleShutdown():
 	# check if the server already shuts down
 	if server.inShutdown():
 		log(Log.WARNING, "shutdown already in progress")
@@ -57,14 +60,14 @@ def main(argv=None):
 	for sgn in signals:
 		if hasattr(signal, sgn):
 			log(Log.INFO, "listening for signal '%s' for shutdown" % sgn)
-			signal.signal(getattr(signal,sgn), handle_shutdown)
+			signal.signal(getattr(signal,sgn), handleShutdownSignal)
 
 	# start the server and loop ad infiniti
 	server.start()
 	try: 
 		while 1: time.sleep(1)
 	except KeyboardInterrupt: 
-		handle_shutdown()
+		handleShutdown()
 
 if __name__=="__main__":
 	sys.exit(main())
