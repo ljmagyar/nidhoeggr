@@ -4,7 +4,7 @@ from random import random, choice, randint
 from sys import argv
 from time import sleep
 
-import nidhoeggr
+from nidhoeggr import Client, DEFAULT_RACELISTPORT
 
 
 def getFirstName():
@@ -61,8 +61,10 @@ class DebugClient:
 
 	def run(self, verbose=1, delay=None):
 		while 1:
-			c = nidhoeggr.Client('Dummy %f' % (random()),self.servername,self.serverport)
-			r = nidhoeggr.RequestSender(c, [[
+			c = Client(self.servername,self.serverport)
+			result = c.doLogin('Dummy %f' % (random()))
+			print result 
+			result = c.doRequest([[
 						"host", 
 						c.client_id,
 						'32766',
@@ -97,10 +99,11 @@ class DebugClient:
 						str(randint(0,15))
 					]])
 			for i in range(randint(1,10)):
-				c = nidhoeggr.Client('Dummy %f' % (random()),'localhost')	
-				j = nidhoeggr.RequestSender(c,[[
+				c = Client(self.servername,self.serverport)
+				c.doLogin('Dummy %f' % (random()))
+				c.doRequest([[
 						'join',
-						r.result[0][0],
+						result[0][0],
 						c.client_id,
 						getFirstName(),
 						getLastName(),
@@ -111,9 +114,9 @@ class DebugClient:
 						str(randint(0,15))
 				]])
 
-			f = nidhoeggr.RequestSender(c,[['req_full',c.client_id]])
+			result = c.doRequest([['req_full',c.client_id]])
 			if verbose:
-				for row in f.result:
+				for row in result:
 					print test(row[0]=='D', "\t", "")+str(row)
 			if delay is not None:
 				if delay>0:
@@ -123,7 +126,7 @@ class DebugClient:
 
 if __name__=="__main__":
 	servername = "localhost"
-	serverport = nidhoeggr.DEFAULT_RACELISTPORT
+	serverport = DEFAULT_RACELISTPORT
 	if len(argv)==2:
 		servername = argv[1]
 	if len(argv)==3:

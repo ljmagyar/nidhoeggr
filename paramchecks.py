@@ -8,28 +8,31 @@ def check_string(value):
 	return None
 
 def check_boolean(value):
-	return __intrangecheck(value,0,1)
+	return __int_range_check(value,0,1)
 
 def check_suint(value):
-	return __intrangecheck(value,0,65535)
+	return __int_range_check(value,0,65535)
 
 def check_team(value):
-	return __intrangecheck(value,0,6)
+	return __int_range_check(value,0,6)
 
 def check_helmetcolour(value):
-	return __intrangecheck(value,0,15)
+	return __int_range_check(value,0,15)
 
 def check_nationality(value):
-	return __intrangecheck(value,0,28)
+	return __int_range_check(value,0,28)
+
+def check_weight(value):
+	return __int_range_check(value,0,9)
 
 def check_class(value):
-	return __intrangecheck(value,1,3)
+	return __int_range_check(value,1,3)
 
 def check_chassisbitfield(value):
-	return __bitfieldcheck(7,value)
+	return __bitfield_check(7,value)
 
 def check_carclassbitfield(value):
-	return __bitfieldcheck(3,value)
+	return __bitfield_check(3,value)
 
 def check_bandwidthfield(value):
 	fields = string.split(value,',')
@@ -55,7 +58,7 @@ def check_ip(value):
 		return "expect 4 numbers between 0 and 255 separated with a dot"
 	return None
 
-def __intrangecheck(value, min, max):
+def __int_range_check(value, min, max):
 	try:
 		i = string.atoi(value)
 		if not min <= i <= max:
@@ -64,7 +67,7 @@ def __intrangecheck(value, min, max):
 		return "value is not in valid range (%d-%d)" % (min,max)
 	return None
 
-def __bitfieldcheck(length,value):
+def __bitfield_check(length,value):
 	"""
 	"""
 	if len(value)!=length:

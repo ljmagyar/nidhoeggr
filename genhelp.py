@@ -4,6 +4,8 @@ import re
 
 import nidhoeggr
 
+if __name__!="__main__": pass
+
 c = nidhoeggr.Client('genhelp.py','localhost')
 r = nidhoeggr.RequestSender(c,[['help']])
 

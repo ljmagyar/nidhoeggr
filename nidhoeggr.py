@@ -4,14 +4,14 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.33 2004/02/06 13:16:11 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.34 2004/02/08 18:13:48 ridcully Exp $"
 
 DEFAULT_RACELISTPORT=30197
 DEFAULT_BROADCASTPORT=6970
 
 copyright = """
-Copyright 2003,2004 Christoph Frick <rid@zefix.tv>
-Copyright 2003,2004 iGOR Development Group
+(c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
+(c) Copyright 2003-2004 iGOR Development Group
 All Rights Reserved
 This software is the proprietary information of the iGOR Development Group
 Use is subject to license terms
@@ -29,13 +29,11 @@ import time
 import socket
 import random
 
-import tools
-from tools import Log, log
-import request
+from tools import *
+from request import *
 
-class RaceList(tools.StopableThread): # {{{
-	"""
-	"""
+class RaceList(StopableThread): # {{{
+	
 
 	CLEANINTERVAL = 60.0 # seconds
 
@@ -44,9 +42,7 @@ class RaceList(tools.StopableThread): # {{{
 	STATE_STOP = 3
 
 	def __init__(self):
-		"""
-		"""
-		tools.StopableThread.__init__(self,self.CLEANINTERVAL)
+		StopableThread.__init__(self,self.CLEANINTERVAL)
 
 		self._users = {}
 		self._usersuniqids = {}
@@ -54,26 +50,20 @@ class RaceList(tools.StopableThread): # {{{
 		self._racesbroadcasts = {}
 		self._reqfull = []
 
-		self.__state = RaceList.STATE_START
+		self._state = RaceList.STATE_START
 
-		self._users_rwlock = tools.ReadWriteLock()
-		self._races_rwlock = tools.ReadWriteLock()
+		self._users_rwlock = ReadWriteLock()
+		self._races_rwlock = ReadWriteLock()
 
 		self._load()
 
 	def hasUser(self, client_id):
-		"""
-		"""
 		return self._users.has_key(client_id)
 
 	def hasRace(self, server_id):
-		"""
-		"""
 		return self._races.has_key(server_id)
 
 	def addUser(self,user):
-		"""
-		"""
 		self._users_rwlock.acquire_write()
 		try:
 			client_id = user.params['client_id']
@@ -86,8 +76,6 @@ class RaceList(tools.StopableThread): # {{{
 			self._users_rwlock.release_write()
 
 	def removeUser(self,client_id):
-		"""
-		"""
 		self._users_rwlock.acquire_write()
 		try:
 			if self.hasUser(client_id):
@@ -98,8 +86,6 @@ class RaceList(tools.StopableThread): # {{{
 			self._users_rwlock.release_write()
 
 	def getUser(self,client_id):
-		"""
-		"""
 		self._users_rwlock.acquire_read()
 		try:
 			if not self.hasUser(client_id):
@@ -111,15 +97,11 @@ class RaceList(tools.StopableThread): # {{{
 		return ret
 
 	def getUserByUniqId(self,client_uniqid):
-		"""
-		"""
 		if self._usersuniqids.has_key(client_uniqid):
 			return self._usersuniqids[client_uniqid]
 		return None
 
 	def addRace(self,race):
-		"""
-		"""
 		self._races_rwlock.acquire_write()
 		try:
 			if not self.hasRace(race.params['server_id']):
@@ -132,8 +114,6 @@ class RaceList(tools.StopableThread): # {{{
 			self._races_rwlock.release_write()
 
 	def removeRace(self,server_id,client_id):
-		"""
-		"""
 		self._races_rwlock.acquire_write()
 		try:
 			if self.hasRace(server_id):
@@ -150,8 +130,6 @@ class RaceList(tools.StopableThread): # {{{
 			self._races_rwlock.release_write()
 	
 	def driverJoinRace(self,server_id,driver):
-		"""
-		"""
 		self._races_rwlock.acquire_write()
 		try:
 			for race in self._races.values():
@@ -165,8 +143,6 @@ class RaceList(tools.StopableThread): # {{{
 			self._races_rwlock.release_write()
 	
 	def driverLeaveRace(self,server_id,client_id):
-		"""
-		"""
 		self._races_rwlock.acquire_write()
 		try:
 			if self.hasRace(server_id):
@@ -178,8 +154,6 @@ class RaceList(tools.StopableThread): # {{{
 			self._races_rwlock.release_write()
 
 	def _buildRaceListAsReply(self):
-		"""
-		"""
 		self.reqfull = []
 		for race in self._races.values():
 			self.reqfull.append(race.getRaceAsReply())
@@ -187,8 +161,6 @@ class RaceList(tools.StopableThread): # {{{
 				self.reqfull.append(driver.getDriverAsReply())
 
 	def getRaceListAsReply(self):
-		"""
-		"""
 		ret = []
 		self._races_rwlock.acquire_read()
 		try:
@@ -198,8 +170,6 @@ class RaceList(tools.StopableThread): # {{{
 		return ret
 
 	def updateRaceViaBroadcast(self, broadcastid, players, maxplayers, trackdir, sessiontype, sessionleft):
-		"""
-		"""
 		self._races_rwlock.acquire_write()
 		try:
 			if self._racesbroadcasts.has_key(broadcastid):
@@ -212,7 +182,7 @@ class RaceList(tools.StopableThread): # {{{
 		"""
 		lurks behind the scenes and cleans the._races and the._users
 		"""
-		if self.__state <> RaceList.STATE_RUN: 
+		if self._state <> RaceList.STATE_RUN: 
 			return
 		currenttime = time.time()
 		usercount = 0
@@ -238,12 +208,14 @@ class RaceList(tools.StopableThread): # {{{
 		log(log.INFO, "cleanup: %d/%d users; %d/%d races" % (userdelcount,usercount,racedelcount,racecount))
 
 	def _join(self):
+		self._save()
+
+	def _save(self,filename='racelist.cpickle'):
 		"""
 		stores the current racelist in the given file
 		"""
-		filename='racelist.cpickle'
 		log(Log.INFO, "store racelist to file '%s'" % filename )
-		self.__state = RaceList.STATE_STOP
+		self._state = RaceList.STATE_STOP
 		self._users_rwlock.acquire_write()
 		self._races_rwlock.acquire_write()
 		try:
@@ -276,20 +248,18 @@ class RaceList(tools.StopableThread): # {{{
 		except Exception,e:
 			log(Log.WARNING, "failed to load racelist state from file '%s': %s" % (filename, e) )
 		self._buildRaceListAsReply()
-		self.__state = RaceList.STATE_RUN
+		self._state = RaceList.STATE_RUN
 
 # }}}
 
-class Race(tools.IdleWatcher): # {{{
-	"""
-	"""
+class Race(IdleWatcher): # {{{
+	
 	
 	def __init__(self,params):
-		"""
-		"""
 		self.params = params
-		if self.params['ip']=='127.0.0.1':
-			self.params['ip'] = random.choice([ '193.99.144.71', '206.231.101.19', '80.15.238.104', '80.15.238.102' ])
+		if __debug__:
+			if self.params['ip']=='127.0.0.1':
+				self.params['ip'] = random.choice([ '193.99.144.71', '206.231.101.19', '80.15.238.104', '80.15.238.102' ])
 		self.params["server_id"] = sha.new("%s%s%s%s%s" % (self.params['client_id'], self.params['ip'], self.params['joinport'], time.time(), random.randint(0,1000000))).hexdigest()
 		self.params["broadcastid"] = "%s:%s" % (self.params['ip'], self.params['joinport'])
 
@@ -299,22 +269,17 @@ class Race(tools.IdleWatcher): # {{{
 		
 		self.drivers = {}
 
+		IdleWatcher.__init__(self,900.0)
+
 		self._initstateless()
 
 	def _initstateless(self):
-		"""
-		"""
-		tools.IdleWatcher.__init__(self,900.0)
-		self._rwlock = tools.ReadWriteLock()
+		self._rwlock = ReadWriteLock()
 
 	def hasDriver(self, client_id):
-		"""
-		"""
 		return self.drivers.has_key(client_id)
 
 	def addDriver(self,driver):
-		"""
-		"""
 		client_id = driver.params['client_id']
 		if not self.hasDriver(client_id):
 			self.setActive()
@@ -322,16 +287,12 @@ class Race(tools.IdleWatcher): # {{{
 		# silently ignore the request, if this driver has already joined the race
 
 	def removeDriver(self,client_id):
-		"""
-		"""
 		if self.hasDriver(client_id):
 			self.setActive()
 			del self.drivers[client_id]
 		# silently ignore the request, if there is no driver with this id in the race
 			
 	def updateRaceViaBroadcast(self, players, maxplayers, trackdir, sessiontype, sessionleft):
-		"""
-		"""
 		self.setActive()
 		self.params['players']     = players
 		self.params['maxplayers']  = maxplayers
@@ -340,8 +301,6 @@ class Race(tools.IdleWatcher): # {{{
 		self.params['sessionleft'] = sessionleft
 
 	def getRaceAsReply(self):
-		"""
-		"""
 		ret = (
 			"R",
 			str(self.params['server_id']),
@@ -376,40 +335,144 @@ class Race(tools.IdleWatcher): # {{{
 		return ret
 
 	def __getstate__(self):
-		"""
-		"""
 		return (self.params,self.drivers)
 	
 	def __setstate__(self,data):
-		"""
-		"""
 		(self.params, self.drivers) = data
 		self._initstateless()
 			
 # }}}
 
-class User(tools.IdleWatcher): # {{{
-	"""
-	"""
+class User(IdleWatcher): # {{{
+	
 
 	def __init__(self,client_uniqid,outsideip):
-		"""
-		"""
 		self.params = {}
-		tools.IdleWatcher.__init__(self, 3600.0)
+		IdleWatcher.__init__(self, 3600.0)
 		self.params['client_uniqid'] = client_uniqid
 		self.params['outsideip'] = outsideip
 		self.params['client_id'] = sha.new("%s%s%s" % (client_uniqid, time.time(), random.randint(0,1000000))).hexdigest()
 
 # }}}
 
+class RLServer(IdleWatcher): # {{{
+	def __init__(self,params):
+		self.params = params
+		IdleWatcher.__init__(self, 900.0)
+		self._initstateless()
+
+	def _initstateless(self):
+		self.requests = []
+		self.setActive()
+	
+	def addRequest(self, request):
+		self.requests.append(request)
+	
+	def getUpdate(self):
+		self.setActive()
+		update = self.requests
+		self.requests = []
+		return update
+
+	def __getstate__(self):
+		return self.params
+
+	def __setstate__(self, data):
+		self.params = data
+		self._initstateless()
+# }}}
+
+class RLServerList(StopableThread): # {{{
+
+	CLEANINTERVAL = 60.0 # seconds
+
+	def __init__(self):
+		StopableThread.__init__(self,self.CLEANINTERVAL)
+		self._servers = {}
+		self._servers_rwlock = ReadWriteLock()
+		self._load()
+
+	def addRLServer(self,server):
+		try:
+			self._servers_rwlock.acquire_write()
+			self._servers[server.params['rls_id']] = server
+		finally:
+			self._servers_rwlock.release_write()
+		self._buildServerListReply()
+
+	def addRequest(self,request):
+		for server in self._servers.values():
+			server.addRequest(request)
+
+	def _load(self, filename='serverlist.cpickle'):
+		log(Log.INFO, "load the server list from file '%s'" % (filename))
+		try:
+			f = open(filename, "r")
+			self._servers = cPickle.load(f)
+			f.close()
+		except Exception, e:
+			log(Log.WARNING, "failed to load server list from file '%s': %s" % (filename, e))
+		self._buildServerListReply()
+	
+	def _save(self, filename='serverlist.cpickle'):
+		log(Log.INFO, "save the server list to file '%s'" % (filename))
+		try:
+			f = open(filename, "w")
+			try:
+				self._servers_rwlock.acquire_read()
+				cPickle.dump(self._servers,f,1)
+			finally:
+				self._servers_rwlock.release_read()
+			f.close()
+		except Exception, e:
+			log(Log.WARNING, "failed to save server list to file '%s': %s" % (filename, e))
+
+	def _buildServerListReply(self):
+		try:
+			self._servers_rwlock.acquire_read()
+			self._serverlistreply = []
+			for server in self._servers.values():
+				self._serverlistreply.append((server.params['rls_id'], server.params['name'], server.params['port']))
+		finally:
+			self._servers_rwlock.release_read()
+
+	def getServerListAsReply(self):
+		return self._serverlistreply
+
+	def getRealServerListAsReply(self):
+		ret = []
+		return ret
+
+	def _run(self):
+		ct = time.time()
+		try:
+			self._servers_rwlock.acquire_write()
+			for rls_id in self._servers.keys():
+				server = self._servers[rls_id]
+				if server.checkTimeout(ct):
+					log.Log(Log.INFO, "dropping race list server %s (%s:%d) due to a a time out" % (server.params['rls_id'], server.params['name'], server.params['port']))
+					del self._servers[rls_id]
+		finally:
+			self._servers_rwlock.release_write()
+
+	def getUpdate(self, params):
+		rls_id = params['rls_id']
+		if not self._servers.has_key(rls_id):
+			raise RaceListProtocolException(404, 'Unknown Server')
+		return self._servers[rls_id].getUpdate()
+
+	def getInitServer(self):
+		if len(self._servers):
+			rls = self._servers.values()[0]
+			return (rls.params['name'],rls.params['port'])
+		return (None,None)
+	
+# }}}
+
 class Driver: # {{{
-	"""
-	"""
+	
 
 	def __init__(self,user,params):
-		"""
-		"""
 		self.params = params
 		self.params["client_id"] = user.params['client_id']
 		self.params["qualifying_time"] = ""
@@ -439,27 +502,30 @@ class Driver: # {{{
 		return ret
 
 	def updateDriverInfos(self, params):
-		"""
-		"""
 		self.params["qualifying_time"] = params["qualifying_time"]
 		self.params["race_position"]   = params["race_position"]
 		self.params["race_laps"]       = params["race_laps"]
 		self.params["race_notes"]      = params["race_notes"]
 
 	def __setstate__(self,data):
-		"""
-		"""
 		self.params = data
 		self._initstateless()
 
 	def __getstate__(self):
-		"""
-		"""
 		return self.params
 # }}}
 
 class RaceListProtocolException(Exception): # {{{
 	"""
+	see the scary documentation for a complete description. these are the
+	known ids:
+
+	200 OK
+	400 error in request
+	401 the user is no longer authentificated
+	404 the resource used in this request was not found
+	500 internal server error 
+	501 unimplemented command
 	"""
 	def __init__(self,id,description):
 		Exception.__init__(self, description)
@@ -469,13 +535,14 @@ class RaceListProtocolException(Exception): # {{{
 # }}}
 
 class Server(SocketServer.ThreadingTCPServer): # {{{
-	"""
-	"""
+	
 
-	def __init__(self,servername,racelistport=DEFAULT_RACELISTPORT,broadcastport=DEFAULT_BROADCASTPORT):
-		"""
-		"""
+	def __init__(self,servername,weight=0,racelistport=DEFAULT_RACELISTPORT,broadcastport=DEFAULT_BROADCASTPORT):
 		self._servername = servername
+		self._rls_id = sha.new("%s%s%s" % (SERVER_VERSION,servername,racelistport)).hexdigest()
+		self._racelistport = racelistport
+		self._broadcastport = broadcastport
+		self._weight = weight
 		
 		print copyright
 		log(Log.INFO,"init %s on %s:%d" % (SERVER_VERSION,servername,racelistport))
@@ -487,27 +554,32 @@ class Server(SocketServer.ThreadingTCPServer): # {{{
 
 		self._broadcastserver = BroadCastServer(self._racelist,broadcastport)
 
+		self._serverlist = RLServerList()
+
 		self._requesthandlers = {}
-		self._addRequestHandler(request.RequestHandlerLogin(self))
-		self._addRequestHandler(request.RequestHandlerReqFull(self))
-		self._addRequestHandler(request.RequestHandlerHost(self))
-		self._addRequestHandler(request.RequestHandlerJoin(self))
-		self._addRequestHandler(request.RequestHandlerLeave(self))
-		self._addRequestHandler(request.RequestHandlerEndHost(self))
-		self._addRequestHandler(request.RequestHandlerReport(self))
-		self._addRequestHandler(request.RequestHandlerCopyright(self))
-		self._addRequestHandler(request.RequestHandlerHelp(self))
+		self._addRequestHandler(RequestHandlerLogin(self))
+		self._addRequestHandler(RequestHandlerReqFull(self))
+		self._addRequestHandler(RequestHandlerHost(self))
+		self._addRequestHandler(RequestHandlerJoin(self))
+		self._addRequestHandler(RequestHandlerLeave(self))
+		self._addRequestHandler(RequestHandlerEndHost(self))
+		self._addRequestHandler(RequestHandlerReport(self))
+		self._addRequestHandler(RequestHandlerCopyright(self))
+		self._addRequestHandler(RequestHandlerRLSRegister(self))
+		self._addRequestHandler(RequestHandlerRLSUnRegister(self))
+		self._addRequestHandler(RequestHandlerRLSUpdate(self))
+		self._addRequestHandler(RequestHandlerRLSFullUpdate(self))
+		if __debug__:
+			self._addRequestHandler(RequestHandlerHelp(self))
+
+		self._requestqueue = []
 
 		self.inshutdown = 0
 
 	def _addRequestHandler(self,handler):
-		"""
-		"""
 		self._requesthandlers[handler.command] = handler
 
 	def handleRequest(self,client_address,request):
-		"""
-		"""
 		if len(request)==0 or len(request[0])==0:
 			raise RaceListProtocolException(400, "empty request")
 		
@@ -517,19 +589,18 @@ class Server(SocketServer.ThreadingTCPServer): # {{{
 
 		if not self._requesthandlers.has_key(command):
 			raise RaceListProtocolException(400, "unknown command")
-		log(log.INFO, "command ``%s'' from %s:%d" % (command, client_address[0], client_address[1]))
+
+		log(Log.INFO, "command ``%s'' from %s:%d" % (command, client_address[0], client_address[1]))
+		if self._requesthandlers[command].distributable:
+			self._requestqueue.append(request)
 		return self._requesthandlers[command].handleRequest(client_address,request[0][1:])
 
 	def start(self):
-		"""
-		"""
 		self._racelist.start()
 		self._broadcastserver.start()
 		self.serve_forever()
 
 	def stop(self):
-		"""
-		"""
 		log(Log.INFO,"shutting down server");
 		self.inshutdown = 1
 		log(Log.INFO,"waiting for broadcast server");
@@ -540,11 +611,24 @@ class Server(SocketServer.ThreadingTCPServer): # {{{
 	def inShutdown(self):
 		return self.inshutdown!=0
 
+	def register(self, initserver=None, initserverport=None):
+		if initserver is None:
+			(initserver,initserverport) = self._serverlist.getInitServer()
+		if initserver is None:
+			log(Log.WARNING, "No init server given and no server list found - this server runs as ``root'' server")
+		else:
+			try:
+				client = Client(initserver,initserverport)
+				result = client.doRequest([["rls_register", self._rls_id, self._servername, str(self._racelistport), str(self._weight)]])
+				# for row in result:
+					# self._serverlist.addRLServer(row)
+			except Exception, e:
+				log(Log.WARNING, "Error on registering to init server: %s" % e)
+
 # }}}
 
 class Middleware: # {{{
-	"""
-	"""
+	
 
 	CLIENTINDENT="w196"
 	MODE_COMPRESS="c"
@@ -556,8 +640,6 @@ class Middleware: # {{{
 	ROWSEPARATOR="\002"
 
 	def readData(self):
-		"""
-		"""
 		clientident = self.rfile.read(4)
 		if clientident!=self.CLIENTINDENT:
 			raise RaceListProtocolException(400, "unknown client ident")
@@ -621,8 +703,6 @@ class Middleware: # {{{
 		return data
 
 	def sendData(self,data):
-		"""
-		"""
 		mode = self.MODE_CLEARTEXT
 		l = len(data)
 		if l>self.COMPRESS_MIN_LEN:
@@ -637,8 +717,6 @@ class Middleware: # {{{
 			self.wfile.write(struct.pack(">4scL", self.CLIENTINDENT, mode, len(data))+data)
 
 	def send(self,reply,exception=None):
-		"""
-		"""
 		result = []
 		if exception is not None:
 			result.append("%d%s%s" % (exception.id,self.CELLSEPARATOR,exception.description))
@@ -647,8 +725,6 @@ class Middleware: # {{{
 		self.sendData(string.join(result,self.ROWSEPARATOR))
 
 	def read(self):
-		"""
-		"""
 		data = self.readData()
 		request = []
 		for row in data.split(self.ROWSEPARATOR):
@@ -658,14 +734,11 @@ class Middleware: # {{{
 # }}}
 
 class ServerRequestHandler(SocketServer.StreamRequestHandler, Middleware): # {{{
-	"""
-	"""
+	
 
 	OK = RaceListProtocolException(200,'OK')
 
 	def handle(self):
-		"""
-		"""
 		log(Log.DEBUG, "connection from %s:%d" % self.client_address )
 
 		try:
@@ -689,35 +762,27 @@ class ServerRequestHandler(SocketServer.StreamRequestHandler, Middleware): # {{{
 
 # }}}
 
-class BroadCastServer(SocketServer.ThreadingUDPServer, tools.StopableThread): # {{{
-	"""
-	"""
+class BroadCastServer(SocketServer.ThreadingUDPServer, StopableThread): # {{{
+	
 
 	def __init__(self,racelist,broadcastport=DEFAULT_BROADCASTPORT):
-		"""
-		"""
 		log(Log.INFO,"init broadcast listen server on port %d" % (broadcastport))
 
-		tools.StopableThread.__init__(self)
+		StopableThread.__init__(self)
 		
 		self.racelist = racelist
 		self.allow_reuse_address = 1
 		SocketServer.ThreadingUDPServer.__init__(self,("",broadcastport),BroadCastServerRequestHandler)
 
 	def _run(self):
-		"""
-		"""
 		(infd,outfd,errfd) = select.select([self.socket], [], [], 1.0) # timout 1s
 		if self.socket in infd:
 			self.handle_request()
 # }}}
 
 class BroadCastServerRequestHandler(SocketServer.DatagramRequestHandler): # {{{
-	"""
-	"""
+	
 	def handle(self):
-		"""
-		"""
 		try:
 			line = self.rfile.read(4096)
 			version, joinport, servername, trackdir, cardir, xplayers, classes, racetype, junk, hassession, sessiontype, timeinsession, passworded, maxping = line.split("\001")
@@ -738,29 +803,19 @@ class BroadCastServerRequestHandler(SocketServer.DatagramRequestHandler): # {{{
 
 # }}}
 
-class Client: # {{{
-	"""
-	"""
+class Client(Middleware): # {{{
 
-	def __init__(self, client_uniq_id, server, port=DEFAULT_RACELISTPORT):
-		"""
-		"""
+	def __init__(self, server, port=DEFAULT_RACELISTPORT):
 		self.server_address = (server,port)
-		
-		loginrequest = RequestSender(self, [['login', request.PROTOCOL_VERSION, SERVER_VERSION, client_uniq_id]])
-		self.client_id = loginrequest.result[0][2]
 
-# }}}
+	def doLogin(self, client_uniq_id):
+		result = self.doRequest([['login', PROTOCOL_VERSION, SERVER_VERSION, client_uniq_id]])
+		self.client_id = result[0][2]
+		return result
 
-class RequestSender(Middleware): # {{{
-	"""
-	"""
-
-	def __init__(self, client, params):
-		"""
-		"""
+	def doRequest(self,params):
 		s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		s.connect(client.server_address)
+		s.connect(self.server_address)
 		self.rfile = s.makefile('rb')
 		self.wfile = s.makefile('wb')
 		self.send(params)
@@ -768,11 +823,13 @@ class RequestSender(Middleware): # {{{
 		result = self.read()
 		self.rfile.close()
 		s.close()
-		self.status = RaceListProtocolException(int(result[0][0]), result[0][1])
-		if self.status.id <> 200:
-			raise self.status
-		self.result = result[1:]
+		status = RaceListProtocolException(int(result[0][0]), result[0][1])
+		if status.id <> 200:
+			raise status
+		return result[1:]
 
 # }}}
+
+if __name__=="__main__": pass
 
 # vim:fdm=marker

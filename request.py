@@ -1,8 +1,8 @@
-PROTOCOL_VERSION="scary v0.1"
-
 import nidhoeggr
 import paramchecks
 import socket
+
+PROTOCOL_VERSION="scary v0.1"
 
 class RequestParam: # {{{
 	""""""
@@ -18,11 +18,12 @@ class RequestParam: # {{{
 
 class Request: # {{{
 	"""defines a command for the racelist"""
-	def __init__(self,command,paramconfig,description,resultdescription):
+	def __init__(self,command,paramconfig,description,resultdescription,distributable=1):
 		self.command = command
 		self.paramconfig = paramconfig
 		self.description = description
 		self.resultdescription = resultdescription
+		self.distributable = distributable
 # }}}
 
 class RequestLogin(Request): # {{{
@@ -139,7 +140,8 @@ class RequestReqFull(Request): # {{{
 			race_position,
 			race_laps,
 			race_notes
-			"""
+			""",
+			0 # not distributable
 		)
 # }}}
 
@@ -196,8 +198,7 @@ class RequestEndHost(Request): # {{{
 # }}}
 
 class RequestReport(Request): # {{{
-	"""
-	"""
+	
 	def __init__(self):
 		Request.__init__(self, 
 			"report", 
@@ -210,14 +211,14 @@ class RequestReport(Request): # {{{
 # }}}
 
 class RequestCopyright(Request): # {{{
-	"""
-	"""
+
 	def __init__(self):
 		Request.__init__(self, 
 			"copyright", 
 			[],
 			"""Returns a copyright notice about the protocol and the server.""",
-			"""String holding the text of the copyright notice."""
+			"""String holding the text of the copyright notice.""",
+			0 # not distributable
 		)
 # }}}
 
@@ -229,21 +230,76 @@ class RequestHelp(Request): # {{{
 			"help", 
 			[],
 			"""Returns a list of all implemented commands.""",
-			"""For each command a line starting with command, then followed by a line for each param and finally a line starting with result, explaining the data sent back to the client."""
+			"""For each command a line starting with command, then followed by a line for each param and finally a line starting with result, explaining the data sent back to the client.""",
+			0 # not distributable
+		)
+# }}}
+
+class RequestRLSRegister(Request): # {{{
+
+	def __init__(self):
+		Request.__init__(self,
+			"rls_register",
+			[
+				RequestParam('rls_id', paramchecks.check_string, ''),
+				RequestParam('name', paramchecks.check_string, ''),
+				RequestParam('port', paramchecks.check_suint, ''),
+				RequestParam('weight', paramchecks.check_weight, '')
+			],
+			"""Registers a race list server for the reproduction""",
+			"""List of the known race list servers""",
+			0 # not distributable
+		)
+# }}}
+
+class RequestRLSUnRegister(Request): # {{{
+
+	def __init__(self):
+		Request.__init__(self,
+			"rls_unregister",
+			[
+				RequestParam('rls_id', paramchecks.check_string, '')
+			],
+			"""Removes the race list server from the known servers""",
+			"""Nothing""",
+			0 # not distributable
+		)
+# }}}
+
+class RequestRLSUpdate(Request): # {{{
+
+	def __init__(self):
+		Request.__init__(self,
+			"rls_update",
+			[
+				RequestParam('rls_id', paramchecks.check_string, '')
+			],
+			"""A list of all updates from a certain server""",
+			"""List of all requests on this server since the last call of this function""",
+			0 # not distributable
+		)
+# }}}
+
+class RequestRLSFullUpdate(Request): # {{{
+
+	def __init__(self):
+		Request.__init__(self,
+			"rls_fullupdate",
+			[
+				RequestParam('rls_id', paramchecks.check_string, '')
+			],
+			"""Complete list of all data from the server; this is used after the registration to get the complete data from the choosen master""",
+			"""All Users, Races and their Drivers on this server""",
+			0 # not distributable
 		)
 # }}}
 
 class RequestHandler: # {{{
-	"""
-	"""
 
-	def __init__(self,racelistserver):
-		"""
-		"""
-		self._racelistserver = racelistserver
-		self._racelist = racelistserver._racelist
+	def __init__(self,server):
+		self._server = server
 
-	def handleRequest(self,client_address,values):
+	def handleRequest(self,client_address,values,distributed=0):
 		"""
 		"""
 		if len(self.paramconfig) != len(values):
@@ -257,54 +313,55 @@ class RequestHandler: # {{{
 				raise nidhoeggr.RaceListProtocolException(400,"Error on %s: %s" % (param.paramname,checkresult))
 			params[param.paramname] = value
 
-		return self._handleRequest(params)
+		if not distributed and self.distributable:
+			self._server._serverlist.addRequest(values)
 
-	def _handleRequest(self,data):
-		"""
-		"""
+		return self._handleRequest(params, distributed)
+
+	def _handleRequest(self,data,distributed=0):
 		raise NotImplementedError("RequestHandler._handleRequest is not implemented")
 
 # }}}
 
 class RequestHandlerLogin(RequestHandler, RequestLogin): # {{{
-	"""
-	"""
-	def __init__(self,racelistserver):
+	
+	def __init__(self,server):
 		RequestLogin.__init__(self)
-		RequestHandler.__init__(self, racelistserver)
+		RequestHandler.__init__(self, server)
 
-	def _handleRequest(self,params):
+	def _handleRequest(self,params,distributed):
 		if params["protocol_version"]!=PROTOCOL_VERSION:
 			if __debug__:
 				raise nidhoeggr.RaceListProtocolException(400, "wrong protcol version - expected '%s'"%PROTOCOL_VERSION)
 			else:
 				raise nidhoeggr.RaceListProtocolException(400, "wrong protcol version")
 
-		user = self._racelist.getUserByUniqId(params["client_uniqid"])
+		user = self._server._racelist.getUserByUniqId(params["client_uniqid"])
 		if user is None:
 			user = nidhoeggr.User(params["client_uniqid"],params['ip'])
-			self._racelist.addUser(user)
+			self._server._racelist.addUser(user)
 
-		return [[PROTOCOL_VERSION,nidhoeggr.SERVER_VERSION,user.params['client_id'],user.params['outsideip']]]
+		ret = [[PROTOCOL_VERSION,nidhoeggr.SERVER_VERSION,user.params['client_id'],user.params['outsideip']]]
+		return ret + self._server._serverlist.getServerListAsReply()
 
 # }}}
 
 class RequestHandlerHost(RequestHandler, RequestHost): # {{{
 	"""
 	"""
-	def __init__(self, racelistserver):
+	def __init__(self, server):
 		RequestHost.__init__(self)
-		RequestHandler.__init__(self, racelistserver)
+		RequestHandler.__init__(self, server)
 
-	def _handleRequest(self,params):
-		self._racelist.getUser(params["client_id"])
+	def _handleRequest(self,params,distributed):
+		self._server._racelist.getUser(params["client_id"])
 		race = nidhoeggr.Race(params)
-		self._racelist.addRace(race)
+		self._server._racelist.addRace(race)
 
-		user = self._racelist.getUser(params["client_id"])
+		user = self._server._racelist.getUser(params["client_id"])
 		driver = nidhoeggr.Driver(user,params)
 		server_id = race.params['server_id']
-		self._racelist.driverJoinRace(server_id,driver)
+		self._server._racelist.driverJoinRace(server_id,driver)
 
 		return [[server_id]]
 
@@ -313,28 +370,28 @@ class RequestHandlerHost(RequestHandler, RequestHost): # {{{
 class RequestHandlerReqFull(RequestHandler, RequestReqFull): # {{{
 	"""
 	"""
-	def __init__(self, racelistserver):
+	def __init__(self, server):
 		RequestReqFull.__init__(self)
-		RequestHandler.__init__(self, racelistserver)
+		RequestHandler.__init__(self, server)
 
-	def _handleRequest(self,params):
-		user = self._racelist.getUser(params["client_id"])
+	def _handleRequest(self,params,distributed):
+		user = self._server._racelist.getUser(params["client_id"])
 		user.setActive()
-		return self._racelist.getRaceListAsReply()
+		return self._server._racelist.getRaceListAsReply()
 
 # }}}
 
 class RequestHandlerJoin(RequestHandler, RequestJoin): # {{{
 	"""
 	"""
-	def __init__(self, racelistserver):
+	def __init__(self, server):
 		RequestJoin.__init__(self)
-		RequestHandler.__init__(self, racelistserver)
+		RequestHandler.__init__(self, server)
 
-	def _handleRequest(self,params):
-		user = self._racelist.getUser(params["client_id"])
+	def _handleRequest(self,params,distributed):
+		user = self._server._racelist.getUser(params["client_id"])
 		driver = nidhoeggr.Driver(user,params)
-		self._racelist.driverJoinRace(params["server_id"],driver)
+		self._server._racelist.driverJoinRace(params["server_id"],driver)
 		return [[]]
 
 # }}}
@@ -342,12 +399,12 @@ class RequestHandlerJoin(RequestHandler, RequestJoin): # {{{
 class RequestHandlerLeave(RequestHandler, RequestLeave): # {{{
 	"""
 	"""
-	def __init__(self, racelistserver):
+	def __init__(self, server):
 		RequestLeave.__init__(self)
-		RequestHandler.__init__(self, racelistserver)
+		RequestHandler.__init__(self, server)
 
-	def _handleRequest(self,params):
-		self._racelist.driverLeaveRace(params["server_id"], params["client_id"])
+	def _handleRequest(self,params,distributed):
+		self._server._racelist.driverLeaveRace(params["server_id"], params["client_id"])
 		return [[]]
 
 # }}}
@@ -355,12 +412,12 @@ class RequestHandlerLeave(RequestHandler, RequestLeave): # {{{
 class RequestHandlerEndHost(RequestHandler, RequestEndHost): # {{{
 	"""
 	"""
-	def __init__(self, racelistserver):
+	def __init__(self, server):
 		RequestEndHost.__init__(self)
-		RequestHandler.__init__(self, racelistserver)
+		RequestHandler.__init__(self, server)
 
-	def _handleRequest(self,params):
-		self._racelist.removeRace(params["server_id"], params["client_id"])
+	def _handleRequest(self,params,distributed):
+		self._server._racelist.removeRace(params["server_id"], params["client_id"])
 		return [[]]
 
 # }}}
@@ -368,11 +425,11 @@ class RequestHandlerEndHost(RequestHandler, RequestEndHost): # {{{
 class RequestHandlerReport(RequestHandler, RequestReport): # {{{
 	"""
 	"""
-	def __init__(self, racelistserver):
+	def __init__(self, server):
 		RequestReport.__init__(self)
-		RequestHandler.__init__(self, racelistserver)
+		RequestHandler.__init__(self, server)
 
-	def _handleRequest(self,params):
+	def _handleRequest(self,params,distributed):
 		# TODO
 		raise nidhoeggr.RaceListProtocolException(501, "not yet implemented")
 
@@ -381,25 +438,24 @@ class RequestHandlerReport(RequestHandler, RequestReport): # {{{
 class RequestHandlerCopyright(RequestHandler, RequestCopyright): # {{{
 	"""
 	"""
-	def __init__(self, racelistserver):
+	def __init__(self, server):
 		RequestCopyright.__init__(self)
-		RequestHandler.__init__(self, racelistserver)
+		RequestHandler.__init__(self, server)
 
-	def _handleRequest(self,params):
+	def _handleRequest(self,params,distributed):
 		return [[copyright]]
 
 # }}}
 
 class RequestHandlerHelp(RequestHandler, RequestHelp): # {{{
-	"""
-	"""
-	def __init__(self, racelistserver):
-		RequestHelp.__init__(self)
-		RequestHandler.__init__(self, racelistserver)
 
-	def _handleRequest(self,params):
+	def __init__(self, server):
+		RequestHelp.__init__(self)
+		RequestHandler.__init__(self, server)
+
+	def _handleRequest(self,params,distributed):
 		ret = []
-		rhs = self._racelistserver._requesthandlers.values()
+		rhs = self._server._requesthandlers.values()
 		rhs.sort()
 		for rh in rhs:
 			ret.append(['command', rh.command])
@@ -410,5 +466,53 @@ class RequestHandlerHelp(RequestHandler, RequestHelp): # {{{
 		return ret
 
 # }}}
+
+class RequestHandlerRLSRegister(RequestHandler, RequestRLSRegister): # {{{
+
+	def __init__(self, server):
+		RequestRLSRegister.__init__(self)
+		RequestHandler.__init__(self, server)
+
+	def _handleRequest(self, params, distributed):
+		server = nidhoeggr.RLServer(params)
+		self._server._serverlist.addRLServer(server)
+		ret = self._server._serverlist.getRealServerListAsReply()
+		return ret
+# }}}
+
+class RequestHandlerRLSUnRegister(RequestHandler, RequestRLSUnRegister): # {{{
+
+	def __init__(self, server):
+		RequestRLSUnRegister.__init__(self)
+		RequestHandler.__init__(self, server)
+
+	def _handleRequest(self, params, distributed):
+		ret = []
+		return ret
+# }}}
+
+class RequestHandlerRLSUpdate(RequestHandler, RequestRLSUpdate): # {{{
+
+	def __init__(self, server):
+		RequestRLSUpdate.__init__(self)
+		RequestHandler.__init__(self, server)
+
+	def _handleRequest(self, params, distributed):
+		ret = []
+		return ret
+# }}}
+
+class RequestHandlerRLSFullUpdate(RequestHandler, RequestRLSFullUpdate): # {{{
+
+	def __init__(self, server):
+		RequestRLSFullUpdate.__init__(self)
+		RequestHandler.__init__(self, server)
+
+	def _handleRequest(self, params, distributed):
+		ret = []
+		return ret
+# }}}
+
+if __name__=="__main__": pass
 
 # vim:fdm=marker:

@@ -34,10 +34,6 @@ class Log: # {{{
 		"""
 		self.log(loglevel,msg)
 
-log = Log()
-if __debug__:
-	log.setLogLevel(Log.DEBUG)
-
 # }}}
 
 class ReadWriteLock: # {{{
@@ -133,5 +129,11 @@ class StopableThread(threading.Thread): # {{{
 	def _run(self):pass
 
 # }}}
+
+if __name__=="__main__": pass
+
+log = Log()
+if __debug__:
+	log.setLogLevel(Log.DEBUG)
 
 # vim:fdm=marker
