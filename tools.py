@@ -12,9 +12,13 @@ class Log: # {{{
 
 	_loglevelrepr = ['#','*','>','!']
 
-	def __init__(self):
+	def __init__(self,filename=None):
 		"""
 		"""
+		if filename==None:
+			self.out_fh = sys.stderr
+		else:
+			self.out_fh = open(filename,'a')
 		self.setLogLevel(Log.INFO)
 
 	def log(self,loglevel,msg):
@@ -22,7 +26,7 @@ class Log: # {{{
 		"""
 		if loglevel >= self._loglevel:
 			message = "%s %s:\t%s" % (Log._loglevelrepr[loglevel],time.ctime(),msg)
-			print >>sys.stderr, message
+			print >>self.out_fh, message
 
 	def setLogLevel(self,loglevel):
 		"""
