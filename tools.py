@@ -1,6 +1,6 @@
-import sys
-import time
-import threading
+from sys import stderr
+from time import time, ctime
+from threading import Thread, Event
 
 class Log: # {{{
 	"""
@@ -16,7 +16,7 @@ class Log: # {{{
 		"""
 		"""
 		if filename==None:
-			self.out_fh = sys.stderr
+			self.out_fh = stderr
 		else:
 			self.out_fh = open(filename,'a')
 		self.setLogLevel(Log.INFO)
@@ -25,7 +25,7 @@ class Log: # {{{
 		"""
 		"""
 		if loglevel >= self._loglevel:
-			message = "%s %s:\t%s" % (Log._loglevelrepr[loglevel],time.ctime(),msg)
+			message = "%s %s:\t%s" % (Log._loglevelrepr[loglevel],ctime(),msg)
 			print >>self.out_fh, message
 
 	def setLogLevel(self,loglevel):
@@ -37,50 +37,6 @@ class Log: # {{{
 		"""
 		"""
 		self.log(loglevel,msg)
-
-# }}}
-
-class ReadWriteLock: # {{{
-	"""
-	"""
-
-	def __init__(self):
-		"""
-		"""
-		self._read_ready = threading.Condition(threading.Lock())
-		self._readers = 0
-
-	def acquire_read(self):
-		"""
-		"""
-		self._read_ready.acquire()
-		try: 
-			self._readers += 1
-		finally: 
-			self._read_ready.release()
-
-	def release_read(self):
-		"""
-		"""
-		self._read_ready.acquire()
-		try:
-			self._readers -= 1
-			if not self._readers:
-				self._read_ready.notifyAll()
-		finally:
-			self._read_ready.release()
-	
-	def acquire_write(self):
-		"""
-		"""
-		self._read_ready.acquire()
-		while self._readers > 0:
-			self._read_ready.wait()
-	
-	def release_write(self):
-		"""
-		"""
-		self._read_ready.release()
 
 # }}}
 
@@ -96,13 +52,13 @@ class IdleWatcher: # {{{
 	def setActive(self):
 		"""
 		"""
-		self.params['lastactivity'] = time.time()
+		self.params['lastactivity'] = time()
 
 	def checkTimeout(self,currenttime=None,timeout=None):
 		"""
 		"""
 		if currenttime is None:
-			currenttime = time.time()
+			currenttime = time()
 		if timeout is None:
 			timeout = self.params['timeout']
 		return self.params['lastactivity'] + timeout < currenttime
@@ -110,14 +66,14 @@ class IdleWatcher: # {{{
 
 # IdleWatcher }}}
 
-class StopableThread(threading.Thread): # {{{
+class StopableThread(Thread): # {{{
 	"""
 	"""
 	def __init__(self,sleep=0):
 		"""
 		"""
-		threading.Thread.__init__(self)
-		self._stopevent = threading.Event()
+		Thread.__init__(self)
+		self._stopevent = Event()
 		self._sleep = sleep
 
 	def join(self,timeout=None):
@@ -126,7 +82,7 @@ class StopableThread(threading.Thread): # {{{
 		"""
 		self._stopevent.set()
 		self._join()
-		threading.Thread.join(self,timeout)
+		Thread.join(self,timeout)
 
 	def run(self):
 		while not self._stopevent.isSet():

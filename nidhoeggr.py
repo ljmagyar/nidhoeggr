@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.3 2004/11/13 21:33:56 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.4 2004/12/12 15:19:26 ridcully Exp $"
 
 __copyright__ = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -17,19 +17,20 @@ print __copyright__
 
 from config import config, DEFAULT_RACELISTPORT
 
-import sys
 import sha
 import zlib
 import struct
-import socket; socket.setdefaulttimeout(config.sockettimeout)
-import SocketServer
-import string
 import cPickle
 import select
-import time
 import random
+from time import time, sleep
+from threading import Semaphore
 
-from tools import *
+import socket; socket.setdefaulttimeout(config.sockettimeout)
+from SocketServer import ThreadingTCPServer, StreamRequestHandler
+from SocketServer import ThreadingUDPServer, DatagramRequestHandler
+
+from tools import StopableThread, IdleWatcher, log, Log
 import request
 import paramchecks
 
@@ -52,8 +53,11 @@ class RaceList(StopableThread): # {{{
 
 		self._state = RaceList.STATE_START
 
-		self._users_rwlock = ReadWriteLock()
-		self._races_rwlock = ReadWriteLock()
+		self._users_sem = Semaphore(verbose=1)
+		self._races_sem = Semaphore(verbose=1)
+		if __debug__:
+			log(Log.DEBUG, "_users_sem = %s" % self._users_sem )
+			log(Log.DEBUG, "_races_sem = %s" % self._races_sem )
 
 		self._load()
 
@@ -64,7 +68,7 @@ class RaceList(StopableThread): # {{{
 		return self._races.has_key(server_id)
 
 	def addUser(self,user):
-		self._users_rwlock.acquire_write()
+		self._users_sem.acquire()
 		try:
 			client_id = user.params['client_id']
 			if not self.hasUser(client_id):
@@ -73,25 +77,28 @@ class RaceList(StopableThread): # {{{
 			else:
 				raise Error(Error.REQUESTERROR, "user already registered")
 		finally:
-			self._users_rwlock.release_write()
+			self._users_sem.release()
 
 	def removeUser(self,client_id):
-		self._users_rwlock.acquire_write()
-		self._races_rwlock.acquire_write()
+		self._users_sem.acquire()
+		self._races_sem.acquire()
 		try:
-			if self.hasUser(client_id):
-				if self._usersuniqids.has_key(self._users[client_id].params['client_uniqid']):
-					del self._usersuniqids[self._users[client_id].params['client_uniqid']]
-				del self._users[client_id]
-			for race in self._races.values():
-				race.removeDriver(client_id)
-			self._buildRaceListAsReply()
+			self._removeUser(client_id)
 		finally:
-			self._races_rwlock.release_write()
-			self._users_rwlock.release_write()
+			self._races_sem.release()
+			self._users_sem.release()
+
+	def _removeUser(self,client_id):
+		if self.hasUser(client_id):
+			if self._usersuniqids.has_key(self._users[client_id].params['client_uniqid']):
+				del self._usersuniqids[self._users[client_id].params['client_uniqid']]
+			del self._users[client_id]
+		for race in self._races.values():
+			race.removeDriver(client_id)
+		self._buildRaceListAsReply()
 
 	def getUser(self,client_id):
-		self._users_rwlock.acquire_read()
+		self._users_sem.acquire()
 		try:
 			if not self.hasUser(client_id):
 				raise Error(Error.AUTHERROR, "user unknown/not logged in")
@@ -99,7 +106,7 @@ class RaceList(StopableThread): # {{{
 			ret.setActive()
 			return ret
 		finally:
-			self._users_rwlock.release_read()
+			self._users_sem.release()
 
 	def getUserByUniqId(self,client_uniqid):
 		if self._usersuniqids.has_key(client_uniqid):
@@ -107,31 +114,35 @@ class RaceList(StopableThread): # {{{
 		return None
 
 	def addRace(self,race):
-		self._races_rwlock.acquire_write()
+		self._races_sem.acquire()
 		try:
 			if not self.hasRace(race.params['server_id']):
 				self._races[race.params['server_id']] = race
 				self._racesbroadcasts[race.params['broadcastid']] = race
 				self._buildRaceListAsReply()
 		finally:
-			self._races_rwlock.release_write()
+			self._races_sem.release()
 
 	def removeRace(self,server_id,client_id):
-		self._races_rwlock.acquire_write()
+		self._races_sem.acquire()
 		try:
-			if self.hasRace(server_id):
-				if self._races[server_id].params['client_id']!=client_id:
-					raise Error(Error.AUTHERROR, "authorization required")
-				broadcastid = self._races[server_id].params['broadcastid']
-				if self._racesbroadcasts.has_key(broadcastid):
-					del self._racesbroadcasts[broadcastid]
-				del self._races[server_id]
-				self._buildRaceListAsReply()
+			self._removeRace(self, server_id, client_id)
 		finally:
-			self._races_rwlock.release_write()
+			self._races_sem.release()
+	
+	def _removeRace(self,server_id,client_id):
+		if not self.hasRace(server_id):
+			return
+		if self._races[server_id].params['client_id']!=client_id:
+			raise Error(Error.AUTHERROR, "authorization required")
+		broadcastid = self._races[server_id].params['broadcastid']
+		if self._racesbroadcasts.has_key(broadcastid):
+			del self._racesbroadcasts[broadcastid]
+		del self._races[server_id]
+		self._buildRaceListAsReply()
 	
 	def driverJoinRace(self,server_id,driver):
-		self._races_rwlock.acquire_write()
+		self._races_sem.acquire()
 		try:
 			for race in self._races.values():
 				race.removeDriver(driver.params['client_id'])
@@ -139,16 +150,16 @@ class RaceList(StopableThread): # {{{
 				self._races[server_id].addDriver(driver)
 				self._buildRaceListAsReply()
 		finally:
-			self._races_rwlock.release_write()
+			self._races_sem.release()
 	
 	def driverLeaveRace(self,server_id,client_id):
-		self._races_rwlock.acquire_write()
+		self._races_sem.acquire()
 		try:
 			if self.hasRace(server_id):
 				self._races[server_id].removeDriver(client_id)
 				self._buildRaceListAsReply()
 		finally:
-			self._races_rwlock.release_write()
+			self._races_sem.release()
 
 	def _buildRaceListAsReply(self):
 		self.reqfull = []
@@ -159,14 +170,15 @@ class RaceList(StopableThread): # {{{
 					self.reqfull.append(driver.getDriverAsReply())
 
 	def getRaceListAsReply(self):
-		self._races_rwlock.acquire_read()
+		self._races_sem.acquire()
 		try:
 			return self.reqfull
 		finally:
-			self._races_rwlock.release_read()
+			self._races_sem.release()
 
 	def updateRaceViaBroadcast(self, params):
-		self._races_rwlock.acquire_write()
+		self._users_sem.acquire()
+		self._races_sem.acquire()
 		try:
 			broadcastid = "%s:%s" % (params['ip'], params['joinport'])
 			race = None
@@ -196,60 +208,58 @@ class RaceList(StopableThread): # {{{
 				# set the starting user active so it gets
 				# distributed for sure and assures, that a
 				# race can be started on the other racelists
-				self._users_rwlock.acquire_write()
-				try:
-					client_id = race.params['client_id']
-					if self._users.has_key(client_id):
-						self._users[client_id].setActive()
-				finally:
-					self._users_rwlock.release_write()
+				client_id = race.params['client_id']
+				if self._users.has_key(client_id):
+					self._users[client_id].setActive()
 		finally:
-			self._races_rwlock.release_write()
+			self._races_sem.release()
+			self._users_sem.release()
 
 	def _run(self):
-		"""
-		lurks behind the scenes and cleans the._races and the._users
-		"""
+		"""lurks behind the scenes and cleans the._races and the._users"""
 		# nothing do until we hit the RUN state
-		if self._state <> RaceList.STATE_RUN: 
+		if self._state!=RaceList.STATE_RUN: 
 			return
-		currenttime = time.time()
+		currenttime = time()
 		usercount = 0
 		userdelcount = 0
 		racecount = 0
 		racedelcount = 0
 		raceinvisiblecount = 0
-		for server_id in self._races.keys():
-			racecount = racecount + 1
-			# set the client, which started the race, active
-			self._users_rwlock.acquire_write()
-			try:
+
+		self._users_sem.acquire()
+		self._races_sem.acquire()
+		try:
+			for server_id in self._races.keys():
+				racecount = racecount + 1
+				# set the client, which started the race, active
 				client_id = self._races[server_id].params['client_id']
 				if self._users.has_key(client_id):
 					self._users[client_id].setActive()
-			finally:
-				self._users_rwlock.release_write()
-			if self._racelistserver._request_count and self._races[server_id].params['visible'] and self._races[server_id].checkTimeout(currenttime):
-				# soft timeout removes it from display
-				if __debug__:
-					log(Log.DEBUG, "setting race %s invisible" % server_id )
-				self._races[server_id].params['visible'] = 0
-				raceinvisiblecount = raceinvisiblecount + 1
-				self._buildRaceListAsReply()
-			elif self._racelistserver._request_count and self._races[server_id].checkTimeout(currenttime,config.race_timeout_hard):
-				# hard timeout deletes the race
-				if __debug__:
-					log(Log.DEBUG, "removing race %s" % server_id )
-				racedelcount = racedelcount + 1
-				self.removeRace(server_id, self._races[server_id].params['client_id'])
-
-		for client_id in self._users.keys():
-			usercount = usercount + 1
-			if self._users[client_id].checkTimeout(currenttime):
-				if __debug__:
-					log(Log.DEBUG, "removing user %s" % client_id )
-				userdelcount = userdelcount + 1
-				self.removeUser(client_id)
+				if self._racelistserver._request_count:
+					if self._races[server_id].params['visible'] and self._races[server_id].checkTimeout(currenttime):
+						# soft timeout removes it from display
+						if __debug__:
+							log(Log.DEBUG, "setting race %s invisible" % server_id )
+						self._races[server_id].params['visible'] = 0
+						raceinvisiblecount = raceinvisiblecount + 1
+						self._buildRaceListAsReply()
+					elif self._races[server_id].checkTimeout(currenttime,config.race_timeout_hard):
+						# hard timeout deletes the race
+						if __debug__:
+							log(Log.DEBUG, "removing race %s" % server_id )
+						racedelcount = racedelcount + 1
+						self._removeRace(server_id, self._races[server_id].params['client_id'])
+			for client_id in self._users.keys():
+				usercount = usercount + 1
+				if self._users[client_id].checkTimeout(currenttime):
+					if __debug__:
+						log(Log.DEBUG, "removing user %s" % client_id )
+					userdelcount = userdelcount + 1
+					self._removeUser(client_id)
+		finally:
+			self._races_sem.release()
+			self._users_sem.release()
 
 		log(log.INFO, "cleanup: %d/%d users; %d/%d/%d races" % (userdelcount,usercount,racedelcount,raceinvisiblecount,racecount))
 		self._save()
@@ -259,12 +269,10 @@ class RaceList(StopableThread): # {{{
 		self._save()
 
 	def _save(self):
-		"""
-		stores the current racelist in the given file
-		"""
+		"""stores the current racelist in the given file"""
 		filename = config.file_racelist
-		self._users_rwlock.acquire_write()
-		self._races_rwlock.acquire_write()
+		self._users_sem.acquire()
+		self._races_sem.acquire()
 		try:
 			try:
 				try:
@@ -281,18 +289,16 @@ class RaceList(StopableThread): # {{{
 				log(Log.WARNING,"failed to save racelist state to file '%s': %s" % (filename,e) )
 				return
 		finally:
-			self._races_rwlock.release_write()
-			self._users_rwlock.release_write()
+			self._races_sem.release()
+			self._users_sem.release()
 		log(Log.INFO, "stored racelist to file '%s'" % filename )
 
 	def _load(self):
-		"""
-		loads the racelist from the given file
-		"""
+		"""loads the racelist from the given file"""
 		filename = config.file_racelist
 		log(Log.INFO, "load racelist from file '%s'" % filename )
-		self._users_rwlock.acquire_write()
-		self._races_rwlock.acquire_write()
+		self._users_sem.acquire()
+		self._races_sem.acquire()
 		try:
 			try:
 				try:
@@ -314,34 +320,34 @@ class RaceList(StopableThread): # {{{
 					except: pass
 			except Exception,e:
 				log(Log.WARNING, "failed to load racelist state from file '%s': %s" % (filename, e) )
+			self._buildRaceListAsReply()
 		finally:
-			self._races_rwlock.release_write()
-			self._users_rwlock.release_write()
-		self._buildRaceListAsReply()
+			self._races_sem.release()
+			self._users_sem.release()
 		self._state = RaceList.STATE_RUN
 
 	def getFullUpdate(self):
 		ret = []
-		# add all the users of this list as distributed logins
-		self._users_rwlock.acquire_write()
+
 		rq_distlogin = request.DistributedLogin()
-		try:
-			for user in self._users.values():
-				ret.append(rq_distlogin.generateDistributableRequest(user.params))
-		finally:
-			self._users_rwlock.release_write()
-		# add all the races of this list as distributed hosts and all
-		# the drivers as joins
-		self._races_rwlock.acquire_write()
 		rq_disthost = request.DistributedHost()
 		rq_join = request.Join()
+
+		self._users_sem.acquire()
+		self._races_sem.acquire()
 		try:
+			# add all the users of this list as distributed logins
+			for user in self._users.values():
+				ret.append(rq_distlogin.generateDistributableRequest(user.params))
+			# add all the races of this list as distributed hosts and all
+			# the drivers as joins
 			for race in self._races.values():
 				ret.append(rq_disthost.generateDistributableRequest(race.params))
 				for driver in race.drivers.values():
 					ret.append(rq_join.generateDistributableRequest(driver.params))
 		finally:
-			self._races_rwlock.release_write()
+			self._races_sem.release()
+			self._users_sem.release()
 
 		return ret
 
@@ -349,11 +355,10 @@ class RaceList(StopableThread): # {{{
 
 class Race(IdleWatcher): # {{{
 	
-	
 	def __init__(self,params):
 		self.params = params
 		if not self.params.has_key('server_id'):
-			self.params["server_id"] = sha.new("%s%s%s%s%s" % (self.params['client_id'], self.params['ip'], self.params['joinport'], time.time(), random.randint(0,1000000))).hexdigest()
+			self.params["server_id"] = sha.new("%s%s%s%s%s" % (self.params['client_id'], self.params['ip'], self.params['joinport'], time(), random.randint(0,1000000))).hexdigest()
 
 		self.params["sessiontype"] = 0
 		self.params["sessionleft"] = self.params['praclength']
@@ -369,7 +374,6 @@ class Race(IdleWatcher): # {{{
 
 	def _initstateless(self):
 		self.setActive()
-		self._rwlock = ReadWriteLock()
 
 	def genBroadcastId(self):
 		firstchar = ""
@@ -456,7 +460,7 @@ class User(IdleWatcher): # {{{
 		self.params = params
 		IdleWatcher.__init__(self, config.user_timeout)
 		if not self.params.has_key('client_id'):
-			self.params['client_id'] = sha.new("%s%s%s" % (params['client_uniqid'], time.time(), random.randint(0,1000000))).hexdigest()
+			self.params['client_id'] = sha.new("%s%s%s" % (params['client_uniqid'], time(), random.randint(0,1000000))).hexdigest()
 
 # }}}
 
@@ -520,7 +524,9 @@ class RLServerList(StopableThread): # {{{
 				"ip":socket.gethostbyname(config.servername)
 				})
 		self._servers = {}
-		self._servers_rwlock = ReadWriteLock()
+		self._servers_sem = Semaphore(verbose=1)
+		if __debug__:
+			log(Log.DEBUG, "_servers_sem = %s" % self._servers_sem )
 		self._load()
 		self.client = None
 
@@ -528,23 +534,23 @@ class RLServerList(StopableThread): # {{{
 		return self._rls.params['rls_id']==rls_id or self._servers.has_key(rls_id)
 
 	def getRLServer(self, rls_id):
-		self._servers_rwlock.acquire_read()
+		self._servers_sem.acquire()
 		try:
 			if not self.hasRLServer(rls_id):
 				raise Error(Error.AUTHERROR, "race list server unknown/not logged in")
 			return self._servers[rls_id]
 		finally:
-			self._servers_rwlock.release_read()
+			self._servers_sem.release()
 
 	def addRLServer(self,rls):
 		rls_id = rls.params['rls_id']
-		self._servers_rwlock.acquire_write()
+		self._servers_sem.acquire()
 		try:
 			# this also blocks ourself from beeing added; see hasRLServer
 			if not self.hasRLServer(rls_id):
 				self._servers[rls_id] = rls
 		finally:
-			self._servers_rwlock.release_write()
+			self._servers_sem.release()
 		self._buildServerListReply()
 
 	def delRLServer(self,rls_id,ip):
@@ -556,15 +562,15 @@ class RLServerList(StopableThread): # {{{
 		if not ip==rls.params['ip']:
 			return
 		# delete the server from the list
-		self._servers_rwlock.acquire_write()
+		self._servers_sem.acquire()
 		try:
 			del self._servers[rls_id]
 		finally:
-			self._servers_rwlock.release_write()
+			self._servers_sem.release()
 		self._buildServerListReply()
 
 	def getUpdate(self, ip, rls_id, current_load):
-		self._servers_rwlock.acquire_write()
+		self._servers_sem.acquire()
 		try:
 			if self._servers.has_key(rls_id):
 				rls = self._servers[rls_id]
@@ -575,18 +581,18 @@ class RLServerList(StopableThread): # {{{
 			else:
 				raise Error(Error.AUTHERROR, 'unknown server')
 		finally:
-			self._servers_rwlock.release_write()
+			self._servers_sem.release()
 		# with the update comes also the current load so we rebuild the lists
 		self._buildServerListReply()
 		return ret
 
 	def addRequest(self, values):
-		self._servers_rwlock.acquire_write()
+		self._servers_sem.acquire()
 		try:
 			for server in self._servers.values():
 				server.addRequest(values)
 		finally:
-			self._servers_rwlock.release_write()
+			self._servers_sem.release()
 
 	def _load(self):
 		filename = config.file_serverlist
@@ -606,19 +612,19 @@ class RLServerList(StopableThread): # {{{
 		filename = config.file_serverlist
 		log(Log.INFO, "save the server list to file '%s'" % (filename))
 		try:
-			self._servers_rwlock.acquire_read()
+			self._servers_sem.acquire()
 			try:
 				f = open(filename, "w")
 				cPickle.dump(self._servers,f)
 			finally:
-				self._servers_rwlock.release_read()
+				self._servers_sem.release()
 				try: f.close()
 				except: pass
 		except Exception, e:
 			log(Log.WARNING, "failed to save server list to file '%s': %s" % (filename, e))
 
 	def _buildServerListReply(self):
-		self._servers_rwlock.acquire_read()
+		self._servers_sem.acquire()
 		try:
 			sortlist = {}
 			for server in self._servers.values()+[self._rls]:
@@ -635,7 +641,7 @@ class RLServerList(StopableThread): # {{{
 					self._simpleserverlistreply.append((server.params['name'], server.params['port']))
 					self._fullserverlistreply.append((server.params['protocol_version'], server.params['rls_id'], server.params['name'], server.params['ip'], server.params['port'], server.params['maxload']))
 		finally:
-			self._servers_rwlock.release_read()
+			self._servers_sem.release()
 
 	def getSimpleServerListAsReply(self):
 		return self._simpleserverlistreply
@@ -662,52 +668,48 @@ class RLServerList(StopableThread): # {{{
 
 
 	def _run(self):
-		ct = time.time()
+		ct = time()
 		changes = 0
-		for rls in self._servers.values():
-			# get the updates from the server
-			try:
-				client = Client(rls.params['ip'],int(rls.params['port']))
-				# first register on server, that are new in the list
-				if rls.state == RLServer.NEW:
-					rls_register = request.RLSRegister()
-					result = client.doRequest(rls_register.generateCompleteRequest(self._rls.params))
-					rls.state = RLServer.REGISTERED
-					self.registerServersFromRLRegisterResult(self._racelistserver, result)
-					# after the registering query a full update
-					rq = request.RLSFullUpdate()
-				else:
-					# once registered we only get updates
-					rq = request.RLSUpdate()
-				result = client.doRequest(rq.generateCompleteRequest(self._rls.params))
-				for row in result:
-					try:
-						self._racelistserver.handleDistributedRequest(row)
-					except Error, e:
-						if e.id not in [Error.AUTHERROR, Error.NOTFOUND]:
-							raise e
-						log(Log.WARNING, "error on executing request - ignoring: %s" % e)
-			except Exception, e:
-				log(Log.ERROR, "error getting update from rls=%s - deleting: %s" % (rls.params['rls_id'],e))
-				self._servers_rwlock.acquire_write()
+		self._servers_sem.acquire()
+		try:
+			for rls in self._servers.values():
+				# get the updates from the server
 				try:
+					client = Client(rls.params['ip'],int(rls.params['port']))
+					# first register on server, that are new in the list
+					if rls.state == RLServer.NEW:
+						rls_register = request.RLSRegister()
+						result = client.doRequest(rls_register.generateCompleteRequest(self._rls.params))
+						rls.state = RLServer.REGISTERED
+						self.registerServersFromRLRegisterResult(self._racelistserver, result)
+						# after the registering query a full update
+						rq = request.RLSFullUpdate()
+					else:
+						# once registered we only get updates
+						rq = request.RLSUpdate()
+					result = client.doRequest(rq.generateCompleteRequest(self._rls.params))
+					for row in result:
+						try:
+							self._racelistserver.handleDistributedRequest(row)
+						except Error, e:
+							if e.id not in [Error.AUTHERROR, Error.NOTFOUND]:
+								raise e
+							log(Log.WARNING, "error on executing request - ignoring: %s" % e)
+				except Exception, e:
+					log(Log.ERROR, "error getting update from rls=%s - deleting: %s" % (rls.params['rls_id'],e))
 					self._servers[rls.params['rls_id']].error += 1
 					if self._racelistserver._request_count and self._servers[rls.params['rls_id']].error > 10:
 						changes = 1
 						del self._servers[rls.params['rls_id']]
-				finally:
-					self._servers_rwlock.release_write()
-				continue
+					continue
 
-			# remove the server, if it was not active for the given time
-			if self._racelistserver._request_count and rls.checkTimeout(ct):
-				log(Log.INFO, "dropping race list server %s (%s:%d) due to a time out" % (rls.params['rls_id'], rls.params['name'], int(rls.params['port'])))
-				self._servers_rwlock.acquire_write()
-				try:
+				# remove the server, if it was not active for the given time
+				if self._racelistserver._request_count and rls.checkTimeout(ct):
+					log(Log.INFO, "dropping race list server %s (%s:%d) due to a time out" % (rls.params['rls_id'], rls.params['name'], int(rls.params['port'])))
 					changes = 1
 					del self._servers[rls.params['rls_id']]
-				finally:
-					self._servers_rwlock.release_write()
+		finally:
+			self._servers_sem.release()
 		self._racelistserver.calcLoad(ct)
 		# generate the server list, if server got deleted
 		if changes:
@@ -880,8 +882,8 @@ class Middleware: # {{{
 	def send(self,data):
 		retdata = []
 		for row in data:
-			retdata.append(string.join(row,self.CELLSEPARATOR))
-		self.sendData(string.join(retdata,self.ROWSEPARATOR))
+			retdata.append(self.CELLSEPARATOR.join(row))
+		self.sendData(self.ROWSEPARATOR.join(retdata))
 
 	def reply(self,exception,data=[]):
 		self.send([[str(exception.id),exception.description]]+data)
@@ -896,7 +898,7 @@ class Middleware: # {{{
 
 # }}}
 
-class RaceListServer(SocketServer.ThreadingTCPServer, StopableThread): # {{{
+class RaceListServer(ThreadingTCPServer, StopableThread): # {{{
 
 	def __init__(self):
 		log(Log.INFO,"init racelist server on %s:%d" % (config.servername,config.racelistport))
@@ -926,12 +928,12 @@ class RaceListServer(SocketServer.ThreadingTCPServer, StopableThread): # {{{
 			self._addRequestHandler(request.HandlerHelp(self))
 
 		self._request_count = 0
-		self._lastloadsampletimestamp = time.time()
+		self._lastloadsampletimestamp = time()
 
 		self.register()
 
 		self.allow_reuse_address = 1
-		SocketServer.ThreadingTCPServer.__init__(self,("",config.racelistport),RaceListServerRequestHandler)
+		ThreadingTCPServer.__init__(self,("",config.racelistport),RaceListServerRequestHandler)
 
 	def start(self):
 		self._serverlist.start()
@@ -948,10 +950,10 @@ class RaceListServer(SocketServer.ThreadingTCPServer, StopableThread): # {{{
 	def _join(self):
 		log(Log.INFO,"waiting for broadcast server");
 		self._broadcastserver.join()
-		time.sleep(1)
+		sleep(1)
 		log(Log.INFO,"shutting down racelist server port %s:%d" % (config.servername, config.racelistport))
 		self.server_close()
-		time.sleep(1)
+		sleep(1)
 		log(Log.INFO,"waiting for serverlist");
 		self._serverlist.join()
 		log(Log.INFO,"waiting for racelist");
@@ -1016,7 +1018,7 @@ class RaceListServer(SocketServer.ThreadingTCPServer, StopableThread): # {{{
 			log(Log.WARNING, "failed to register to any other race list server; check your config if you are not intending to run this server as a root server" )
 # }}}
 
-class RaceListServerRequestHandler(SocketServer.StreamRequestHandler, Middleware): # {{{
+class RaceListServerRequestHandler(StreamRequestHandler, Middleware): # {{{
 
 	OK = Error(Error.OK,'OK')
 
@@ -1048,7 +1050,7 @@ class RaceListServerRequestHandler(SocketServer.StreamRequestHandler, Middleware
 
 # }}}
 
-class BroadCastServer(SocketServer.ThreadingUDPServer, StopableThread): # {{{
+class BroadCastServer(ThreadingUDPServer, StopableThread): # {{{
 
 	def __init__(self,racelistserver):
 		log(Log.INFO,"init broadcast server on port %s:%d" % (config.servername, config.broadcastport))
@@ -1057,7 +1059,7 @@ class BroadCastServer(SocketServer.ThreadingUDPServer, StopableThread): # {{{
 		
 		self._racelistserver = racelistserver
 		self.allow_reuse_address = 1
-		SocketServer.ThreadingUDPServer.__init__(self,("",config.broadcastport),BroadCastServerRequestHandler)
+		ThreadingUDPServer.__init__(self,("",config.broadcastport),BroadCastServerRequestHandler)
 
 	def _run(self):
 		try: 
@@ -1072,7 +1074,7 @@ class BroadCastServer(SocketServer.ThreadingUDPServer, StopableThread): # {{{
 		self.server_close()
 # }}}
 
-class BroadCastServerRequestHandler(SocketServer.DatagramRequestHandler): # {{{
+class BroadCastServerRequestHandler(DatagramRequestHandler): # {{{
 	
 	def handle(self):
 		try:
