@@ -33,7 +33,7 @@ servername = localhost
 # user_timeout = 3600
 
 # idle time of a race until it gets dropped
-# race_timeout = 300
+# race_timeout = 90
 
 # idle time of a race list server  until it gets dropped
 # server_timeout = 90
