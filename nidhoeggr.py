@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.51 2004/04/24 13:16:12 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.52 2004/04/25 13:31:21 ridcully Exp $"
 
 __copyright__ = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -106,9 +106,7 @@ class RaceList(StopableThread): # {{{
 			if not self.hasRace(race.params['server_id']):
 				self._races[race.params['server_id']] = race
 				self._racesbroadcasts[race.params['broadcastid']] = race
-			else:
-				raise Error(Error.REQUESTERROR, "race already registered")
-			self._buildRaceListAsReply()
+				self._buildRaceListAsReply()
 		finally:
 			self._races_rwlock.release_write()
 
@@ -122,9 +120,7 @@ class RaceList(StopableThread): # {{{
 				if self._racesbroadcasts.has_key(broadcastid):
 					del self._racesbroadcasts[broadcastid]
 				del self._races[server_id]
-			else:
-				raise Error(Error.NOTFOUND, "unknown server_id")
-			self._buildRaceListAsReply()
+				self._buildRaceListAsReply()
 		finally:
 			self._races_rwlock.release_write()
 	
@@ -135,9 +131,7 @@ class RaceList(StopableThread): # {{{
 				race.removeDriver(driver.params['client_id'])
 			if self.hasRace(server_id):
 				self._races[server_id].addDriver(driver)
-			else:
-				raise Error(Error.NOTFOUND, "unknown server_id")
-			self._buildRaceListAsReply()
+				self._buildRaceListAsReply()
 		finally:
 			self._races_rwlock.release_write()
 	
@@ -251,6 +245,31 @@ class RaceList(StopableThread): # {{{
 		self._buildRaceListAsReply()
 		self._state = RaceList.STATE_RUN
 
+	def getFullUpdate(self):
+		ret = []
+		# add all the users of this list as distributed logins
+		self._users_rwlock.acquire_write()
+		rq_distlogin = request.DistributedLogin()
+		try:
+			for user in self._users.values():
+				ret.append(rq_distlogin.generateDistributableRequest(user.params))
+		finally:
+			self._users_rwlock.release_write()
+		# add all the races of this list as distributed hosts and all
+		# the drivers as joins
+		self._races_rwlock.acquire_write()
+		rq_disthost = request.DistributedHost()
+		rq_join = request.Join()
+		try:
+			for race in self._races.values():
+				ret.append(rq_disthost.generateDistributableRequest(race.params))
+				for driver in race.drivers.values():
+					ret.append(rq_join.generateDistributableRequest(driver.params))
+		finally:
+			self._races_rwlock.release_write()
+
+		return ret
+
 # }}}
 
 class Race(IdleWatcher): # {{{
@@ -348,15 +367,11 @@ class Race(IdleWatcher): # {{{
 
 class User(IdleWatcher): # {{{
 
-	def __init__(self,client_uniqid,outside_ip,client_id=None):
-		self.params = {}
+	def __init__(self,params):
+		self.params = params
 		IdleWatcher.__init__(self, config.user_timeout)
-		self.params['client_uniqid'] = client_uniqid
-		self.params['outside_ip'] = outside_ip
-		if client_id is None:
-			self.params['client_id'] = sha.new("%s%s%s" % (client_uniqid, time.time(), random.randint(0,1000000))).hexdigest()
-		else:
-			self.params['client_id'] = client_id
+		if not self.params.has_key('client_id'):
+			self.params['client_id'] = sha.new("%s%s%s" % (params['client_uniqid'], time.time(), random.randint(0,1000000))).hexdigest()
 
 # }}}
 
@@ -374,14 +389,27 @@ class RLServer(IdleWatcher): # {{{
 		self.requests = []
 		self.setActive()
 		self.state = RLServer.NEW
+		self.setCurrentLoad(0)
 	
-	def getUpdate(self):
+	def getUpdate(self, current_load):
 		self.setActive()
+		self.setCurrentLoad(current_load)
 		update = self.requests
 		self.requests = []
 		return update
 
+	def setCurrentLoad(self, current_load):
+		self.params['current_load'] = str(current_load)
+		# calculate the difference between the max and the current
+		# load as it will be used to sort this entry for the clients
+		# in the list
+		self.load_diff = int(self.params['maxload']) - current_load
+		if self.load_diff < 0:
+			self.load_diff = 0
+
 	def addRequest(self, values):
+		# TODO: maybe better use a max value here and then du simply a
+		# full update instead of the update?
 		self.requests.append(values)
 
 	def __getstate__(self):
@@ -397,17 +425,21 @@ class RLServerList(StopableThread): # {{{
 	def __init__(self,racelistserver):
 		StopableThread.__init__(self,config.server_update)
 		self._racelistserver = racelistserver
-		self._rls_id = sha.new("%s%s%s" % (SERVER_VERSION,config.servername,config.racelistport)).hexdigest()
+		# we keep ourself here
+		self._rls = RLServer({
+				"rls_id":sha.new("%s%s%s" % (SERVER_VERSION,config.servername,config.racelistport)).hexdigest(),
+				"name":config.servername, 
+				"port":str(config.racelistport), 
+				"maxload":str(config.server_maxload),
+				"ip":socket.gethostbyname(config.servername)
+				})
 		self._servers = {}
 		self._servers_rwlock = ReadWriteLock()
 		self._load()
 		self.client = None
 
-	def isSelf(self, rlserver):
-		return rlserver.params['rls_id'] == self._rls_id
-
 	def hasRLServer(self, rls_id):
-		return self._servers.has_key(rls_id)
+		return self._rls.params['rls_id']==rls_id or self._servers.has_key(rls_id)
 
 	def getRLServer(self, rls_id):
 		self._servers_rwlock.acquire_read()
@@ -422,6 +454,7 @@ class RLServerList(StopableThread): # {{{
 		rls_id = rls.params['rls_id']
 		self._servers_rwlock.acquire_write()
 		try:
+			# this also blocks ourself from beeing added; see hasRLServer
 			if not self.hasRLServer(rls_id):
 				self._servers[rls_id] = rls
 		finally:
@@ -429,9 +462,8 @@ class RLServerList(StopableThread): # {{{
 		self._buildServerListReply()
 
 	def delRLServer(self,rls_id,ip):
-		rls_id = params['rls_id']
 		# check for unknown server
-		if not self._servers.has_key(rls_id):
+		if not self.hasRLServer(rls_id):
 			return
 		# check for the same ip, as the server has registered
 		rls = self.getRLServer(rls_id)
@@ -445,11 +477,11 @@ class RLServerList(StopableThread): # {{{
 			self._servers_rwlock.release_write()
 		self._buildServerListReply()
 
-	def getUpdate(self, rls_id):
+	def getUpdate(self, rls_id, current_load):
 		self._servers_rwlock.acquire_write()
 		try:
 			if self.hasRLServer(rls_id):
-				return self._servers[rls_id].getUpdate()
+				return self._servers[rls_id].getUpdate(current_load)
 			raise Error(Error.AUTHERROR, 'unknown server')
 		finally:
 			self._servers_rwlock.release_write()
@@ -490,11 +522,19 @@ class RLServerList(StopableThread): # {{{
 	def _buildServerListReply(self):
 		self._servers_rwlock.acquire_read()
 		try:
+			sortlist = {}
+			for server in self._servers.values()+[self._rls]:
+				if not sortlist.has_key(server.load_diff):
+					sortlist[server.load_diff] = []
+				sortlist[server.load_diff].append(server)
+			slk = sortlist.keys()
+			slk.sort()
 			self._simpleserverlistreply = []
 			self._fullserverlistreply = []
-			for server in self._servers.values():
-				self._simpleserverlistreply.append((server.params['rls_id'], server.params['name'], server.params['ip'], server.params['port']))
-				self._fullserverlistreply.append((server.params['rls_id'], server.params['name'], server.params['ip'], server.params['port'], server.params['maxload']))
+			for load_diff in slk:
+				for server in sortlist[load_diff]:
+					self._simpleserverlistreply.append((server.params['rls_id'], server.params['name'], server.params['ip'], server.params['port']))
+					self._fullserverlistreply.append((server.params['rls_id'], server.params['name'], server.params['ip'], server.params['port'], server.params['maxload']))
 		finally:
 			self._servers_rwlock.release_read()
 
@@ -509,46 +549,51 @@ class RLServerList(StopableThread): # {{{
 
 	def _run(self):
 		ct = time.time()
-		for rls_id in self._servers.keys():
-			rls = self.getRLServer(rls_id)
-			if self.isSelf(rls):
-				continue
+		self._racelistserver.calcLoad(ct)
+		changes = 0
+		for rls in self._servers.values():
+			# get the updates from the server
 			try:
 				client = Client(rls.params['ip'],int(rls.params['port']))
+				# first register on server, that are new in the list
 				if rls.state == RLServer.NEW:
-					# send a register command to the server
 					rls_register = request.RLSRegister()
-					result = client.doRequest(rls_register.generateCompleteRequest({"rls_id":self._serverlist._rls_id, "name":config.servername, "port":str(config.racelistport), "maxload":str(config.server_maxload)}))
+					result = client.doRequest(rls_register.generateCompleteRequest(self._rls.params))
 					rls.state = RLServer.REGISTERED
 					for row in result:
 						# add the servers from the list, if they are new
 						if not self.hasRLServer(row[0]):
-							self.handleDistributedRequest(rls_register.generateDistributableRequest({'ip':row[2], 'rls_id':row[0], 'name':row[1], 'port':row[3], 'maxload':row[4]}))
+							self._racelistserver.handleDistributedRequest(rls_register.generateDistributableRequest({'ip':row[2], 'rls_id':row[0], 'name':row[1], 'port':row[3], 'maxload':row[4]}))
 					# after the registering query a full update
 					rq = request.RLSFullUpdate()
 				else:
 					# once registered we only get updates
 					rq = request.RLSUpdate()
-				result = client.doRequest(rq.generateCompleteRequest({"rls_id":rls_id}))
+				result = client.doRequest(rq.generateCompleteRequest(self._rls.params))
 				for row in result:
 					self._racelistserver.handleDistributedRequest(row)
 			except Exception, e:
-				log(Log.WARNING, "error getting update from rls=%s - deleting: %s" % (rls_id,e))
+				log(Log.WARNING, "error getting update from rls=%s - deleting: %s" % (rls.params['rls_id'],e))
 				self._servers_rwlock.acquire_write()
 				try:
-					del self._servers[rls_id]
+					changes = 1
+					del self._servers[rls.params['rls_id']]
 				finally:
 					self._servers_rwlock.release_write()
 				continue
 
+			# remove the server, if it was not active for the given time
 			if rls.checkTimeout(ct):
 				log(Log.INFO, "dropping race list server %s (%s:%d) due to a time out" % (rls.params['rls_id'], rls.params['name'], int(rls.params['port'])))
 				self._servers_rwlock.acquire_write()
 				try:
-					del self._servers[rls_id]
+					changes = 1
+					del self._servers[rls.params['rls_id']]
 				finally:
 					self._servers_rwlock.release_write()
-		self._buildServerListReply()
+		# generate the server list, if server got deleted
+		if changes:
+			self._buildServerListReply()
 	
 	def getInitServerList(self):
 		ret = []
@@ -629,7 +674,7 @@ class Middleware: # {{{
 	MODE_CLEARTEXT="t"
 	COMPRESS_MIN_LEN = 1024
 	COMPRESSIONLEVEL = 3
-	MAXSIZE=1024*1024
+	MAXSIZE=4096*1024
 	CELLSEPARATOR="\001"
 	ROWSEPARATOR="\002"
 
@@ -757,8 +802,7 @@ class RaceListServer(SocketServer.ThreadingTCPServer, StopableThread): # {{{
 		if __debug__:
 			self._addRequestHandler(request.HandlerHelp(self))
 
-		self._load = 0
-		self._requests = 0
+		self._request_count = 0
 		self._lastloadsampletimestamp = time.time()
 
 		self.register()
@@ -791,7 +835,7 @@ class RaceListServer(SocketServer.ThreadingTCPServer, StopableThread): # {{{
 		self._requesthandlers[handler.command] = handler
 
 	def handleRequest(self,client_address,request):
-		self.calcLoad()
+		self.incRequestCount()
 		if len(request)==0 or len(request[0])==0:
 			raise Error(Error.REQUESTERROR, "empty request")
 		
@@ -811,14 +855,18 @@ class RaceListServer(SocketServer.ThreadingTCPServer, StopableThread): # {{{
 		return self._requesthandlers[command].handleDistributedRequest(request)
 
 
-	def calcLoad(self):
-		self._requests = self._requests + 1
-		if self._requests==100:
-			ct = time.time()
-			self._load = 100/(ct-self._lastloadsampletimestamp)
-			self._requests = 0
-			self._lastloadsampletimestamp = ct
-			log(Log.INFO,"current load: %s" % self._load)
+	def incRequestCount(self):
+		self._request_count = self._request_count + 1
+
+	def calcLoad(self, ct):
+		if self._request_count>0:
+			current_load = int(self._request_count/(ct-self._lastloadsampletimestamp))
+		else:
+			current_load = 0
+		self._serverlist._rls.setCurrentLoad(current_load)
+		self._request_count = 0
+		self._lastloadsampletimestamp = ct
+		log(Log.INFO,"current load: %s" % current_load)
 
 	def register(self):
 		success = 0
@@ -829,7 +877,7 @@ class RaceListServer(SocketServer.ThreadingTCPServer, StopableThread): # {{{
 			try:
 				client = Client(initserver_name,initserver_port)
 				rls_register = request.RLSRegister()
-				result = client.doRequest(rls_register.generateCompleteRequest({"rls_id":self._serverlist._rls_id, "name":config.servername, "port":str(config.racelistport), "maxload":str(config.server_maxload)}))
+				result = client.doRequest(rls_register.generateCompleteRequest({"rls_id":self._serverlist._rls.params['rls_id'], "name":config.servername, "port":str(config.racelistport), "maxload":str(config.server_maxload)}))
 				log(Log.INFO, "success - registering to the server list from the init server")
 				for row in result:
 					self.handleDistributedRequest(rls_register.generateDistributableRequest({'ip':row[2], 'rls_id':row[0], 'name':row[1], 'port':row[3], 'maxload':row[4]}))

@@ -263,7 +263,8 @@ class RLSUnRegister(Request): # {{{
 class RLSUpdate(Request): # {{{
 	command = "rls_update"
 	paramconfig = [
-		Param('rls_id', paramchecks.check_string, '')
+		Param('rls_id', paramchecks.check_string, ''),
+		Param('current_load', paramchecks.check_maxload, '')
 	]
 	description = """A list of all updates from a certain server"""
 	resultdescription = """List of all requests on this server since the last call of this function"""
@@ -334,13 +335,13 @@ class HandlerLogin(Handler, Login): # {{{
 
 		user = self._server._racelist.getUserByUniqId(params["client_uniqid"])
 		if user is None:
-			user = nidhoeggr.User(params["client_uniqid"],params['ip'])
+			user = nidhoeggr.User(params)
 			self._server._racelist.addUser(user)
 			dl = DistributedLogin()
 			params['client_id'] = user.params['client_id']
 			self._server._serverlist.addRequest(dl.generateDistributableRequest(params))
 
-		ret = [[PROTOCOL_VERSION,nidhoeggr.SERVER_VERSION,user.params['client_id'],user.params['outside_ip']]]
+		ret = [[PROTOCOL_VERSION,nidhoeggr.SERVER_VERSION,user.params['client_id'],user.params['ip']]]
 		return ret + self._server._serverlist.getSimpleServerListAsReply()
 
 	def _handleDistributedReqest(self, params): pass
@@ -358,7 +359,7 @@ class HandlerDistributedLogin(Handler, DistributedLogin): # {{{
 	def _handleDistributedReqest(self,params):
 		user = self._server._racelist.getUserByUniqId(params["client_uniqid"])
 		if user is None:
-			user = nidhoeggr.User(params["client_uniqid"],params['ip'],params['client_id'])
+			user = nidhoeggr.User(params)
 			self._server._racelist.addUser(user)
 
 # }}}
@@ -514,8 +515,9 @@ class HandlerRLSRegister(Handler, RLSRegister): # {{{
 		Handler.__init__(self, server)
 
 	def _handleRequest(self, params):
-		rls = nidhoeggr.RLServer(params)
-		self._server._serverlist.addRLServer(rls)
+		if not self._server._serverlist.hasRLServer(params['rls_id']):
+			rls = nidhoeggr.RLServer(params)
+			self._server._serverlist.addRLServer(rls)
 		return self._server._serverlist.getFullServerListAsReply()
 
 # }}}
@@ -539,8 +541,7 @@ class HandlerRLSUpdate(Handler, RLSUpdate): # {{{
 		Handler.__init__(self, server)
 
 	def _handleRequest(self, params):
-		ret = self._server._serverlist.getUpdate(params['rls_id'])
-		return ret
+		return self._server._serverlist.getUpdate(params['rls_id'], int(params['current_load']))
 # }}}
 
 class HandlerRLSFullUpdate(Handler, RLSFullUpdate): # {{{
@@ -550,8 +551,7 @@ class HandlerRLSFullUpdate(Handler, RLSFullUpdate): # {{{
 		Handler.__init__(self, server)
 
 	def _handleRequest(self, params):
-		ret = []
-		return ret
+		return self._server._racelist.getFullUpdate()
 # }}}
 
 if __name__=="__main__": pass
