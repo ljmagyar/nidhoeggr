@@ -91,11 +91,13 @@ For compressed data a {\tt C} is used - and for clear text a {\tt T}
 \item {\tt SSSS}\\
 This is the size of the request, the other side has to expect to read then.
 The number is an {\it unsigned long int} in {\it network byte order}.  The
-size of the data transmitted is always the real size. If using compressed
-transmission of the data, the size is the length of the data {\bf after} the
-compression.\\
+size of the data transmitted is always the real size to read from the socket.
 
 \end{description}
+
+If the data are compressed the next four byte are the size of the data after
+the compression. This number does count for the {\tt SSSS} size and its stored
+like this number as {\it unsigned long int} in {\it network byte order}.\\
 
 After the interpretation of the header, the given amount of bytes is read from
 the socket. The data are encoded in ISO-8859-1.\\
