@@ -15,6 +15,22 @@ Login of the client/user onto the server. This command must be called before all
 The reply contains 4 cells: protocol version, server version, client id for further requests, ip the connection came from.
 \end{description}
 
+\subsection{distributedlogin}
+
+\begin{description}
+\item {\it Description:}\\
+This command is only distributed to the other race list servers; its similar to the Login command but contains the client\_id the client got assigned from the server
+\item {\it Parmameters:}
+\begin{itemize}
+\item {\tt client\_id}: the client\_id a client got assigned from the server it logged in
+\item {\tt protocol\_version}: version of the protocol, the client expects
+\item {\tt client\_version}: name/version string of the client
+\item {\tt client\_uniqid}: some uniq id of the client
+\end{itemize}
+\item {\it Result:}\\
+Nothing
+\end{description}
+
 \subsection{req\_full}
 
 \begin{description}
@@ -26,53 +42,53 @@ Returns a list of races and the drivers in this races.
 \end{itemize}
 \item {\it Result:}\\
 The complete current racelist. Each line holds either a race or following the drivers of a race. Each line starts either with a cell containing R or D. Races consist of the following: 
-				
-			R, 
-			server\_id, 
-			ip, 
-			joinport, 
-			name, 
-			info1, 
-			info2, 
-			comment, 
-			isdedicatedserver, 
-			ispassworded, 
-			isbosspassworded, 
-			isauthenticedserver, 
-			allowedchassis, 
-			allowedcarclasses, 
-			allowsengineswapping, 
-			modindent, 
-			maxlatency, 
-			bandwidth, 
-			players,
-			maxplayers, 
-			trackdir, 
-			racetype, 
-			praclength, 
-			sessionleft, 
-			sessiontype,
-			aiplayers,
-			numraces,
-			repeatcount,
-			flags
+		
+	R, 
+	server\_id, 
+	ip, 
+	joinport, 
+	name, 
+	info1, 
+	info2, 
+	comment, 
+	isdedicatedserver, 
+	ispassworded, 
+	isbosspassworded, 
+	isauthenticedserver, 
+	allowedchassis, 
+	allowedcarclasses, 
+	allowsengineswapping, 
+	modindent, 
+	maxlatency, 
+	bandwidth, 
+	players,
+	maxplayers, 
+	trackdir, 
+	racetype, 
+	praclength, 
+	sessionleft, 
+	sessiontype,
+	aiplayers,
+	numraces,
+	repeatcount,
+	flags
 
 
-			The drivers contain this data:
+	The drivers contain this data:
 
-			D,
-			firstname,
-			lastname,
-			class\_id,
-			team\_id,
-			mod\_id,
-			nationality,
-			helmet\_colour,
-			qualifying\_time,
-			race\_position,
-			race\_laps,
-			race\_notes
-			
+	D,
+	firstname,
+	lastname,
+	class\_id,
+	team\_id,
+	mod\_id,
+	nationality,
+	helmet\_colour,
+	qualifying\_time,
+	race\_position,
+	race\_laps,
+	race\_notes
+	
 \end{description}
 
 \subsection{host}
@@ -116,6 +132,50 @@ Starts hosting of a race. The given informations are used to describe the race a
 \end{itemize}
 \item {\it Result:}\\
 A unique id for the server, that will be used to update the hosting and race informations and also by the clients to join/leave the race and the IP address the request came from
+\end{description}
+
+\subsection{distributedhost}
+
+\begin{description}
+\item {\it Description:}\\
+This command is only distributed to the other race list servers; its similar to the Host command but contains the server\_id the hosting client got assigned from the server
+\item {\it Parmameters:}
+\begin{itemize}
+\item {\tt server\_id}: 
+\item {\tt client\_id}: 
+\item {\tt joinport}: 
+\item {\tt name}: 
+\item {\tt info1}: 
+\item {\tt info2}: 
+\item {\tt comment}: 
+\item {\tt isdedicatedserver}: 
+\item {\tt ispassworded}: 
+\item {\tt isbosspassworded}: 
+\item {\tt isauthenticedserver}: 
+\item {\tt allowedchassis}: 
+\item {\tt allowedcarclasses}: 
+\item {\tt allowsengineswapping}: 
+\item {\tt modindent}: 
+\item {\tt maxlatency}: 
+\item {\tt bandwidth}: 
+\item {\tt maxplayers}: 
+\item {\tt trackdir}: 
+\item {\tt racetype}: 
+\item {\tt praclength}: 
+\item {\tt aiplayers}: 
+\item {\tt numraces}: 
+\item {\tt repeatcount}: 
+\item {\tt flags}: 
+\item {\tt firstname}: 
+\item {\tt lastname}: 
+\item {\tt class\_id}: 
+\item {\tt team\_id}: 
+\item {\tt mod\_id}: 
+\item {\tt nationality}: 
+\item {\tt helmet\_colour}: 
+\end{itemize}
+\item {\it Result:}\\
+Nothing
 \end{description}
 
 \subsection{join}
@@ -167,6 +227,31 @@ Stops the hosting of the race with the given id.
 Nothing.
 \end{description}
 
+\subsection{broadcast}
+
+\begin{description}
+\item {\it Description:}\\
+Broadcast from a race server.
+\item {\it Parmameters:}
+\begin{itemize}
+\item {\tt version}: 
+\item {\tt joinport}: 
+\item {\tt name}: 
+\item {\tt trackdir}: 
+\item {\tt cardir}: 
+\item {\tt players}: 
+\item {\tt maxplayers}: 
+\item {\tt racetype}: 
+\item {\tt classes}: 
+\item {\tt sessiontype}: 
+\item {\tt sessionleft}: 
+\item {\tt ispassworded}: 
+\item {\tt maxlatency}: 
+\end{itemize}
+\item {\it Result:}\\
+none.
+\end{description}
+
 \subsection{report}
 
 \begin{description}
@@ -187,6 +272,7 @@ Nothing.
 Registers a race list server for the reproduction
 \item {\it Parmameters:}
 \begin{itemize}
+\item {\tt protocol\_version}: version of the protocol, the server expects
 \item {\tt rls\_id}: 
 \item {\tt name}: 
 \item {\tt port}: 
@@ -217,6 +303,7 @@ A list of all updates from a certain server
 \item {\it Parmameters:}
 \begin{itemize}
 \item {\tt rls\_id}: 
+\item {\tt current\_load}: 
 \end{itemize}
 \item {\it Result:}\\
 List of all requests on this server since the last call of this function
