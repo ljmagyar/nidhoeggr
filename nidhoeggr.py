@@ -1,9 +1,9 @@
 #!/usr/bin/env python2.2
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.11 2003/07/30 19:45:46 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.12 2003/07/31 07:23:57 ridcully Exp $"
 
 copyright = """
-Copyright 2003 Christoph Frick <rid@gmx.net>
+Copyright 2003 Christoph Frick <rid@zefix.tv>
 Copyright 2003 iGOR Development Group
 All Rights Reserved
 This software is the proprietary information of the iGOR Development Group
