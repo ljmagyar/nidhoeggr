@@ -4,8 +4,7 @@ scary.aux
 scary.dvi
 scary.log
 texput.log
-commanddoku.aux
-commanddoku.tex.aux
+command_documentation.aux
 scary.out
 scary.pdf
 *.pyc

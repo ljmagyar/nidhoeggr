@@ -1,6 +1,6 @@
 VERSION=0.5
 
-TARSRC=Makefile scary.pdf scary.tex commands.tex debugclient.py nidhoeggr.py paramchecks.py request.py server.py tools.py
+TARSRC=Makefile scary.pdf scary.tex command_documentation.tex debugclient.py nidhoeggr.py paramchecks.py request.py server.py tools.py
 TARDIR=nidhoeggr-$(VERSION)
 TARNAME=$(TARDIR).tar.gz
 
@@ -9,7 +9,7 @@ all:
 
 tar:$(TARNAME)
 
-scary.tex:commands.tex
+scary.tex:command_documentation.tex
 
 scary.dvi:scary.tex
 	latex scary.tex
