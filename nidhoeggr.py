@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.36 2004/02/17 22:04:19 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.37 2004/02/29 16:11:41 ridcully Exp $"
 
 copyright = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -30,6 +30,7 @@ import random
 import config
 from tools import *
 from request import *
+import paramchecks
 
 class RaceList(StopableThread): # {{{
 	
@@ -144,10 +145,8 @@ class RaceList(StopableThread): # {{{
 	def driverLeaveRace(self,server_id,client_id):
 		self._races_rwlock.acquire_write()
 		try:
-			if self.hasRace(server_id):
-				self._races[server_id].removeDriver(client_id)
-			else:
-				raise RaceListProtocolException(404, "unknown server_id")
+			for race in self._races.values():
+				race.removeDriver(client_id)
 			self._buildRaceListAsReply()
 		finally:
 			self._races_rwlock.release_write()
@@ -168,11 +167,11 @@ class RaceList(StopableThread): # {{{
 			self._races_rwlock.release_read()
 		return ret
 
-	def updateRaceViaBroadcast(self, broadcastid, players, maxplayers, trackdir, sessiontype, sessionleft):
+	def updateRaceViaBroadcast(self, broadcastid, players, maxplayers, racetype, trackdir, sessiontype, sessionleft):
 		self._races_rwlock.acquire_write()
 		try:
 			if self._racesbroadcasts.has_key(broadcastid):
-				self._racesbroadcasts[broadcastid].updateRaceViaBroadcast(players, maxplayers, trackdir, sessiontype, sessionleft)
+				self._racesbroadcasts[broadcastid].updateRaceViaBroadcast(players, maxplayers, racetype, trackdir, sessiontype, sessionleft)
 				self._buildRaceListAsReply()
 		finally:
 			self._races_rwlock.release_write()
@@ -293,10 +292,11 @@ class Race(IdleWatcher): # {{{
 			del self.drivers[client_id]
 		# silently ignore the request, if there is no driver with this id in the race
 			
-	def updateRaceViaBroadcast(self, players, maxplayers, trackdir, sessiontype, sessionleft):
+	def updateRaceViaBroadcast(self, players, maxplayers, racetype, trackdir, sessiontype, sessionleft):
 		self.setActive()
 		self.params['players']     = players
 		self.params['maxplayers']  = maxplayers
+		self.params['racetype']    = racetype
 		self.params['trackdir']    = trackdir
 		self.params['sessiontype'] = sessiontype
 		self.params['sessionleft'] = sessionleft
@@ -793,9 +793,28 @@ class BroadCastServerRequestHandler(SocketServer.DatagramRequestHandler): # {{{
 			else:
 				sessionleft = timeinsession[1:]
 
+			error = paramchecks.check_players(players)
+			if error is not None:
+				raise Exception('in broadcast players check failed: %s' % error)
+			error = paramchecks.check_players(maxplayers)
+			if error is not None:
+				raise Exception('in broadcast maxplayers check failed: %s' % error)
+			error = paramchecks.check_racetype(racetype)
+			if error is not None:
+				raise Exception('in broadcast racetype check failed: %s' % error)
+			error = paramchecks.check_string(trackdir)
+			if error is not None:
+				raise Exception('in broadcast trackdir check failed: %s' % error)
+			error = paramchecks.check_sessiontype(sessiontype)
+			if error is not None:
+				raise Exception('in broadcast sessiontype check failed: %s' % error)
+			error = paramchecks.check_suint(sessionleft)
+			if error is not None:
+				raise Exception('in broadcast sessionleft check failed: %s' % error)
+
 			if __debug__:
-				log(Log.DEBUG, "got ping info: broadcastid=%s players=%s maxplayers=%s trackdir=%s sessiontype=%s sessionleft=%s" % (broadcastid, players, maxplayers, trackdir, sessiontype, sessionleft))
-			self.server.racelist.updateRaceViaBroadcast(broadcastid, players, maxplayers, trackdir, sessiontype, sessionleft)
+				log(Log.DEBUG, "got ping info: broadcastid=%s players=%s maxplayers=%s racetype=%s trackdir=%s sessiontype=%s sessionleft=%s" % (broadcastid, players, maxplayers, racetype, trackdir, sessiontype, sessionleft))
+			self.server.racelist.updateRaceViaBroadcast(broadcastid, players, maxplayers, racetype, trackdir, sessiontype, sessionleft)
 		except Exception, e:
 			# can not much do about it
 			log(Log.DEBUG, e)

@@ -2,7 +2,7 @@ import nidhoeggr
 import paramchecks
 import socket
 
-PROTOCOL_VERSION="scary v0.1"
+PROTOCOL_VERSION="scary v1.1"
 
 class RequestParam: # {{{
 	""""""
@@ -35,7 +35,7 @@ class RequestLogin(Request): # {{{
 				RequestParam("client_uniqid", paramchecks.check_string, "some uniq id of the client")
 			],
 			"""Login of the client/user onto the server. This command must be called before all others. This command will assure, that client and server speak the same version of the protocol.""",
-			"""The reply contains 4 cells: protocol version, server version, client id for further requests, ip the connection came from"""
+			"""The reply contains 4 cells: protocol version, server version, client id for further requests, ip the connection came from."""
 		)
 
 # }}}
@@ -61,11 +61,11 @@ class RequestHost(Request): # {{{
 				RequestParam("modindent", paramchecks.check_string, ""),
 				RequestParam("maxlatency", paramchecks.check_suint, ""), 
 				RequestParam("bandwidth", paramchecks.check_bandwidthfield, ""),
-				RequestParam("maxplayers", paramchecks.check_suint, ""),
+				RequestParam("maxplayers", paramchecks.check_players, ""),
 				RequestParam("trackdir", paramchecks.check_string, ""), 
-				RequestParam("racetype", paramchecks.check_suint, ""), 
+				RequestParam("racetype", paramchecks.check_racetype, ""), 
 				RequestParam("praclength", paramchecks.check_suint, ""),
-				RequestParam("aiplayers", paramchecks.check_suint, ""),
+				RequestParam("aiplayers", paramchecks.check_players, ""),
 				RequestParam("numraces", paramchecks.check_suint, ""),
 				RequestParam("repeatcount", paramchecks.check_suint, ""),
 				RequestParam("flags", paramchecks.check_string, ""),
@@ -78,7 +78,7 @@ class RequestHost(Request): # {{{
 				RequestParam("helmet_colour", paramchecks.check_helmetcolour, "")
 			],
 			"""Starts hosting of a race. The given informations are used to describe the race and will be displayed in the same order in the racelist.""",
-			"""A unique id for the server, that will be used to update the hosting and race informations and also by the clients to join/leave the race."""
+			"""A unique id for the server, that will be used to update the hosting and race informations and also by the clients to join/leave the race and the IP address the request came from"""
 		)
 # }}}
 
@@ -352,7 +352,7 @@ class RequestHandlerHost(RequestHandler, RequestHost): # {{{
 		server_id = race.params['server_id']
 		self._server._racelist.driverJoinRace(server_id,driver)
 
-		return [[server_id]]
+		return [[server_id,params['ip']]]
 
 # }}}
 

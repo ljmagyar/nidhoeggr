@@ -28,6 +28,15 @@ def check_maxload(value):
 def check_class(value):
 	return __int_range_check(value,1,3)
 
+def check_racetype(value):
+	return __intrangecheck(value,0,5)
+
+def check_sessiontype(value):
+	return __intrangecheck(value,0,1)
+
+def check_players(value):
+	return __intrangecheck(value,0,20)
+
 def check_chassisbitfield(value):
 	return __bitfield_check(7,value)
 
