@@ -240,6 +240,7 @@ class Help(Request): # {{{
 class RLSRegister(Request): # {{{
 	command = "rls_register"
 	paramconfig = [
+		Param('protocol_version', paramchecks.check_string, 'version of the protocol, the server expects'),
 		Param('rls_id', paramchecks.check_string, ''),
 		Param('name', paramchecks.check_string, ''),
 		Param('port', paramchecks.check_suint, ''),
@@ -515,6 +516,11 @@ class HandlerRLSRegister(Handler, RLSRegister): # {{{
 		Handler.__init__(self, server)
 
 	def _handleRequest(self, params):
+		if params["protocol_version"]!=PROTOCOL_VERSION:
+			if __debug__:
+				raise nidhoeggr.Error(nidhoeggr.Error.REQUESTERROR, "wrong protcol version - expected '%s'"%PROTOCOL_VERSION)
+			else:
+				raise nidhoeggr.Error(nidhoeggr.Error.REQUESTERROR, "wrong protcol version")
 		if not self._server._serverlist.hasRLServer(params['rls_id']):
 			rls = nidhoeggr.RLServer(params)
 			self._server._serverlist.addRLServer(rls)

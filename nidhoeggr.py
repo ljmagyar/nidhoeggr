@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.55 2004/04/25 15:31:34 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.56 2004/04/26 19:51:57 ridcully Exp $"
 
 __copyright__ = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -425,6 +425,7 @@ class RLServerList(StopableThread): # {{{
 		self._racelistserver = racelistserver
 		# we keep ourself here
 		self._rls = RLServer({
+				"protocol_version":request.PROTOCOL_VERSION,
 				"rls_id":sha.new("%s%s%s" % (SERVER_VERSION,config.servername,config.racelistport)).hexdigest(),
 				"name":config.servername, 
 				"port":str(config.racelistport), 
