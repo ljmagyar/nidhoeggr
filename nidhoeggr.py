@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.39 2004/03/02 20:39:07 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.40 2004/03/09 20:24:15 ridcully Exp $"
 
 copyright = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -603,9 +603,8 @@ class Server(SocketServer.ThreadingTCPServer): # {{{
 		if __debug__:
 			self._addRequestHandler(RequestHandlerHelp(self))
 
-		self._requestqueue = []
-
 		self._inshutdown = 0
+		self._requests_rwlock = ReadWriteLock()
 		self._load = 0
 		self._requests = 0
 		self._lastloadsampletimestamp = time.time()
@@ -633,14 +632,18 @@ class Server(SocketServer.ThreadingTCPServer): # {{{
 		self.serve_forever()
 
 	def stop(self):
-		log(Log.INFO,"shutting down server");
-		self._inshutdown = 1
-		log(Log.INFO,"waiting for broadcast server");
-		self._broadcastserver.join()
-		log(Log.INFO,"waiting for serverlist");
-		self._serverlist.join()
-		log(Log.INFO,"waiting for racelist");
-		self._racelist.join()
+		log(Log.INFO,"shutting down server - waiting for pending requests");
+		self._requests_rwlock.acquire_write()
+		try:
+			self._inshutdown = 1
+			log(Log.INFO,"waiting for broadcast server");
+			self._broadcastserver.join()
+			log(Log.INFO,"waiting for serverlist");
+			self._serverlist.join()
+			log(Log.INFO,"waiting for racelist");
+			self._racelist.join()
+		finally:
+			self._requests_rwlock.release_write()
 
 	def inShutdown(self):
 		return self._inshutdown!=0
@@ -772,9 +775,13 @@ class ServerRequestHandler(SocketServer.StreamRequestHandler, Middleware): # {{{
 		log(Log.DEBUG, "connection from %s:%d" % self.client_address )
 
 		try:
-			request = self.read()
-			result = self.server.handleRequest(self.client_address,request)
-			self.reply(self.OK, result)
+			self.server._requests_rwlock.acquire_read()
+			try:
+				request = self.read()
+				result = self.server.handleRequest(self.client_address,request)
+				self.reply(self.OK, result)
+			finally:
+				self.server._requests_rwlock.release_read()
 		except RaceListProtocolException, e:
 			# racelist errors are logged and sent to the client
 			log(Log.ERROR,e)
