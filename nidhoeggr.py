@@ -1,6 +1,6 @@
 #!/usr/bin/env python2.2
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.13 2003/08/10 13:16:45 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.14 2003/08/11 22:10:28 ridcully Exp $"
 
 copyright = """
 Copyright 2003 Christoph Frick <rid@zefix.tv>
@@ -362,9 +362,9 @@ class Race(IdleWatcher): # {{{
 		"""
 		"""
 		self.params = params
-		self.params["realip"] = self.client_address[0]
+		self.params["ip"] = self.client_address[0]
 		self.params["server_id"] = sha.new("%s%s%s%s%s" % (self.client_id,self.ip, self.joinport, time.time(), random.randint(0,1000000))).hexdigest()
-		self.params["broadcastid"] = "%s:%s" % (self.realip, self.joinport)
+		self.params["broadcastid"] = "%s:%s" % (self.ip, self.joinport)
 
 		self.params["sessiontype"] = 0
 		self.params["sessionleft"] = self.praclength
@@ -422,39 +422,40 @@ class Race(IdleWatcher): # {{{
 		"""
 		"""
 		self._rwlock.acquire_read()
-		ret = (
-			"R",
-			str(self.server_id),
-			str(self.realip),
-			str(self.ip),
-			str(self.joinport),
-			str(self.name),
-			str(self.info1),
-			str(self.info2),
-			str(self.comment),
-			str(self.isdedicatedserver),
-			str(self.ispassworded),
-			str(self.isbosspassworded),
-			str(self.isauthenticedserver),
-			str(self.allowedchassis),
-			str(self.allowedcarclasses),
-			str(self.allowsengineswapping),
-			str(self.modindent),
-			str(self.maxlatency),
-			str(self.bandwidth),
-			str(self.players),
-			str(self.maxplayers),
-			str(self.trackdir),
-			str(self.racetype),
-			str(self.praclength),
-			str(self.sessiontype),
-			str(self.sessionleft),
-			str(self.aiplayers),
-			str(self.numraces),
-			str(self.repeatcount),
-			str(self.flags)
-		)
-		self._rwlock.release_read()
+		try:
+			ret = (
+				"R",
+				str(self.server_id),
+				str(self.ip),
+				str(self.joinport),
+				str(self.name),
+				str(self.info1),
+				str(self.info2),
+				str(self.comment),
+				str(self.isdedicatedserver),
+				str(self.ispassworded),
+				str(self.isbosspassworded),
+				str(self.isauthenticedserver),
+				str(self.allowedchassis),
+				str(self.allowedcarclasses),
+				str(self.allowsengineswapping),
+				str(self.modindent),
+				str(self.maxlatency),
+				str(self.bandwidth),
+				str(self.players),
+				str(self.maxplayers),
+				str(self.trackdir),
+				str(self.racetype),
+				str(self.praclength),
+				str(self.sessiontype),
+				str(self.sessionleft),
+				str(self.aiplayers),
+				str(self.numraces),
+				str(self.repeatcount),
+				str(self.flags)
+			)
+		finally:
+			self._rwlock.release_read()
 		return ret
 
 	def __getattr__(self,name):
@@ -733,7 +734,6 @@ class RaceListRequestHandlerHost(RaceListRequestHandler): # {{{
 		"""Starts hosting of a race. The given informations are used to describe the race and will be displayed in the same order in the racelist."""
 		RaceListRequestHandler.__init__(self, racelistserver, "host", [
 			"client_id:string", 
-			"ip:ip", 
 			"joinport:suint", 
 			"name:string", 
 			"info1:string", 
@@ -756,7 +756,14 @@ class RaceListRequestHandlerHost(RaceListRequestHandler): # {{{
 			"aiplayers:suint",
 			"numraces:suint",
 			"repeatcount:suint",
-			"flags:string"
+			"flags:string",
+			"firstname:string", 
+			"lastname:string", 
+			"class_id:suint", 
+			"team_id:suint", 
+			"mod_id:string", 
+			"nationality:suint", 
+			"helmet_colour:suint"
 		])
 
 	def _handleRequest(self,client_address,params):
@@ -764,6 +771,11 @@ class RaceListRequestHandlerHost(RaceListRequestHandler): # {{{
 		self._racelist.getUser(params["client_id"])
 		race = Race(params)
 		self._racelist.addRace(race)
+
+		user = self._racelist.getUser(params["client_id"])
+		driver = Driver(user,params)
+		self._racelist.driverJoinRace(race.server_id,driver)
+
 		return [[race.server_id]]
 
 # }}}
@@ -782,7 +794,6 @@ class RaceListRequestHandlerReqFull(RaceListRequestHandler): # {{{
 			
 		R, 
 		server_id, 
-		realip, 
 		ip, 
 		joinport, 
 		name, 
@@ -975,50 +986,50 @@ class RaceListServer(SocketServer.ThreadingTCPServer): # {{{
 		# special code to help development {{{
 		if __debug__:
 			# add some dummy races
-			user = User("anuniqid","127.0.0.1")
-			self._racelist.addUser(user)
-			log(Log.DEBUG, 
-				self.handleRequest(
-					('192.168.212.82',1024),
-					string.join([
-						"host",
-						user.client_id, 
-						"192.168.212.82",
-						"32766", 
-						"elmister", 
-						"nidhoeggr test server", 
-						"info2", 
-						"comment", 
-						"1",
-						"1", 
-						"1", 
-						"0",
-						"1111111",
-						"111",
-						"0",
-						"gpl1965",
-						"0", 
-						"3,84,3,84",
-						"10", 
-						"monaco", 
-						"1", 
-						"30",
-						"3",
-						"1",
-						"1",
-						"a"
-					],'\001')
-				)
-			)
-			log(
-				Log.DEBUG, self.handleRequest(
-					('127.0.0.1',1024),
-					string.join([
-						"req_full",
-						user.client_id
-					],'\001')
-				)
-			)
+			# user = User("anuniqid","127.0.0.1")
+			# self._racelist.addUser(user)
+			# log(Log.DEBUG, 
+			# 	self.handleRequest(
+			# 		('192.168.212.82',1024),
+			# 		string.join([
+			# 			"host",
+			# 			user.client_id, 
+			# 			"192.168.212.82",
+			# 			"32766", 
+			# 			"elmister", 
+			# 			"nidhoeggr test server", 
+			# 			"info2", 
+			# 			"comment", 
+			# 			"1",
+			# 			"1", 
+			# 			"1", 
+			# 			"0",
+			# 			"1111111",
+			# 			"111",
+			# 			"0",
+			# 			"gpl1965",
+			# 			"0", 
+			# 			"3,84,3,84",
+			# 			"10", 
+			# 			"monaco", 
+			# 			"1", 
+			# 			"30",
+			# 			"3",
+			# 			"1",
+			# 			"1",
+			# 			"a"
+			# 		],'\001')
+			# 	)
+			# )
+			# log(
+			# 	Log.DEBUG, self.handleRequest(
+			# 		('127.0.0.1',1024),
+			# 		string.join([
+			# 			"req_full",
+			# 			user.client_id
+			# 		],'\001')
+			# 	)
+			# )
 			fw = open('commanddoku.tex','w')
 			fw.write( '\\section{Commands}\n\n' )
 			for row in self.handleRequest(('127.0.0.1',1024), string.join([ "help" ],'\001')):
