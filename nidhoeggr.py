@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.56 2004/04/26 19:51:57 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.57 2004/05/02 09:02:49 ridcully Exp $"
 
 __copyright__ = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -538,7 +538,7 @@ class RLServerList(StopableThread): # {{{
 			for load_diff in slk:
 				for server in sortlist[load_diff]:
 					self._simpleserverlistreply.append((server.params['name'], server.params['port']))
-					self._fullserverlistreply.append((server.params['rls_id'], server.params['name'], server.params['ip'], server.params['port'], server.params['maxload']))
+					self._fullserverlistreply.append((server.params['protocol_version'], server.params['rls_id'], server.params['name'], server.params['ip'], server.params['port'], server.params['maxload']))
 		finally:
 			self._servers_rwlock.release_read()
 
@@ -886,10 +886,17 @@ class RaceListServer(SocketServer.ThreadingTCPServer, StopableThread): # {{{
 			try:
 				client = Client(initserver_name,initserver_port)
 				rls_register = request.RLSRegister()
-				result = client.doRequest(rls_register.generateCompleteRequest({"rls_id":self._serverlist._rls.params['rls_id'], "name":config.servername, "port":str(config.racelistport), "maxload":str(config.server_maxload)}))
+				result = client.doRequest(rls_register.generateCompleteRequest(self._serverlist._rls.params))
 				log(Log.INFO, "success - registering to the server list from the init server")
 				for row in result:
-					self.handleDistributedRequest(rls_register.generateDistributableRequest({'ip':row[2], 'rls_id':row[0], 'name':row[1], 'port':row[3], 'maxload':row[4]}))
+					self.handleDistributedRequest(rls_register.generateDistributableRequest({
+						'protocol_version':row[0], 
+						'rls_id':row[1], 
+						'name':row[2], 
+						'ip':row[3], 
+						'port':row[4], 
+						'maxload':row[5]
+					}))
 				success = 1
 				break
 			except Exception, e:
