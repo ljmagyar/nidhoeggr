@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.35 2004/02/17 21:47:08 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.36 2004/02/17 22:04:19 ridcully Exp $"
 
 copyright = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -209,10 +209,11 @@ class RaceList(StopableThread): # {{{
 	def _join(self):
 		self._save()
 
-	def _save(self,filename='racelist.cpickle'):
+	def _save(self):
 		"""
 		stores the current racelist in the given file
 		"""
+		filename = config.file_racelist
 		log(Log.INFO, "store racelist to file '%s'" % filename )
 		self._state = RaceList.STATE_STOP
 		self._users_rwlock.acquire_write()
@@ -225,10 +226,11 @@ class RaceList(StopableThread): # {{{
 		except Exception, e:
 			log(Log.WARNING,"failed to save racelist state to file '%s': %s" % (filename,e) )
 
-	def _load(self,filename='racelist.cpickle'):
+	def _load(self):
 		"""
 		loads the racelist from the given file
 		"""
+		filename = config.file_racelist
 		log(Log.INFO, "load racelist from file '%s'" % filename )
 		try:
 			inf = open(filename, "r")
@@ -403,7 +405,8 @@ class RLServerList(StopableThread): # {{{
 		for server in self._servers.values():
 			server.addRequest(request)
 
-	def _load(self, filename='serverlist.cpickle'):
+	def _load(self):
+		filename = config.file_serverlist
 		log(Log.INFO, "load the server list from file '%s'" % (filename))
 		try:
 			f = open(filename, "r")
@@ -413,7 +416,8 @@ class RLServerList(StopableThread): # {{{
 			log(Log.WARNING, "failed to load server list from file '%s': %s" % (filename, e))
 		self._buildServerListReply()
 	
-	def _save(self, filename='serverlist.cpickle'):
+	def _save(self):
+		filename = config.file_serverlist
 		log(Log.INFO, "save the server list to file '%s'" % (filename))
 		try:
 			f = open(filename, "w")
@@ -465,6 +469,21 @@ class RLServerList(StopableThread): # {{{
 			rls = self._servers.values()[0]
 			return (rls.params['name'],rls.params['port'])
 		return (None,None)
+
+	def register(self):
+		return # FIXME: is there a list loaded? then use this otherwise use init server from the config
+		if initserver is None:
+			(initserver,initserverport) = self._serverlist.getInitServer()
+		if initserver is None:
+			log(Log.WARNING, "No init server given and no server list found - this server runs as ``root'' server")
+		else:
+			try:
+				client = Client(initserver,initserverport)
+				result = client.doRequest([["rls_register", self._rls_id, self._servername, str(self._racelistport), str(self._maxload)]])
+				# for row in result:
+					# self._serverlist.addRLServer(row)
+			except Exception, e:
+				log(Log.WARNING, "Error on registering to init server: %s" % e)
 	
 # }}}
 
@@ -574,8 +593,6 @@ class Server(SocketServer.ThreadingTCPServer): # {{{
 
 		self.inshutdown = 0
 
-		self.register()
-
 	def _addRequestHandler(self,handler):
 		self._requesthandlers[handler.command] = handler
 
@@ -606,21 +623,6 @@ class Server(SocketServer.ThreadingTCPServer): # {{{
 
 	def inShutdown(self):
 		return self.inshutdown!=0
-
-	def register(self):
-		return # FIXME: is there a list loaded? then use this otherwise use init server from the config
-		if initserver is None:
-			(initserver,initserverport) = self._serverlist.getInitServer()
-		if initserver is None:
-			log(Log.WARNING, "No init server given and no server list found - this server runs as ``root'' server")
-		else:
-			try:
-				client = Client(initserver,initserverport)
-				result = client.doRequest([["rls_register", self._rls_id, self._servername, str(self._racelistport), str(self._maxload)]])
-				# for row in result:
-					# self._serverlist.addRLServer(row)
-			except Exception, e:
-				log(Log.WARNING, "Error on registering to init server: %s" % e)
 
 # }}}
 

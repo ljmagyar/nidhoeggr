@@ -8,7 +8,8 @@
 #
 #------------------------------------------------------------------------------
 
-# fqdn or ip of this server - this is needed and the value localhost will fail
+# fqdn or ip of this server
+# this is mandatory and the value localhost will fail
 servername = localhost
 
 #------------------------------------------------------------------------------
@@ -35,7 +36,7 @@ servername = localhost
 # server_timeout = 90
 
 #------------------------------------------------------------------------------
-# fallback config
+# server reproduction config
 #------------------------------------------------------------------------------
 
 # time in seconds the server checks for updates on other servers
@@ -43,3 +44,14 @@ servername = localhost
 
 # maximal amount of requests the server wants
 # server_maxload = 3
+
+#------------------------------------------------------------------------------
+# files
+#------------------------------------------------------------------------------
+
+# where to store the racelist
+# file_racelist = racelist.cpickle
+
+# where to store the serverlist
+# file_serverlist = serverlist.cpickle
+

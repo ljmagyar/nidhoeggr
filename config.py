@@ -7,6 +7,7 @@ from tools import log, Log
 DEFAULT_RACELISTPORT=30197
 DEFAULT_BROADCASTPORT=6970
 
+# FIXME: use a class for each param: name, check, default
 configfile = 'server.conf'
 servername = 'localhost'
 racelistport = DEFAULT_RACELISTPORT
@@ -16,6 +17,8 @@ race_timeout = 90
 server_timeout = 90
 server_update = 30
 server_maxload = 3
+file_racelist = 'racelist.cpickle'
+file_serverlist = 'serverlist.cpickle'
 
 class ConfigError(Exception):
 	def __init__(self, msg):
@@ -61,6 +64,10 @@ def load():
 				server_timeout = int(value)
 			elif key=='server_maxload':
 				server_timeout = int(value)
+			elif key=='file_racelist':
+				file_racelist = value
+			elif key=='file_serverlist':
+				file_serverlist = value
 			else:
 				log(Log.WARNING, "Unknown key='%s' in config file '%s'" % (key, configfile))
 		except ValueError, e:
