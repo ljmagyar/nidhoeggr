@@ -22,3 +22,8 @@ $(TARNAME):$(TARSRC)
 	cp $(TARSRC) $(TARDIR)
 	tar cf - $(TARDIR) | gzip -c9 > $(TARNAME)
 	rm -rf $(TARDIR)
+
+clean:force
+	rm -f *.pyo *.pyc
+
+force:
