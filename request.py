@@ -539,7 +539,7 @@ class HandlerBroadcast(Handler, Broadcast): # {{{
 
 	def _handleRequest(self, params):
 		self._server._racelist.updateRaceViaBroadcast(params)
-		return [[]]
+		return []
 # }}}
 
 class HandlerRLSRegister(Handler, RLSRegister): # {{{
