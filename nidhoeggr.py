@@ -4,7 +4,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.60 2004/05/08 16:33:40 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.61 2004/05/12 09:42:25 ridcully Exp $"
 
 __copyright__ = """
 (c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
@@ -168,7 +168,7 @@ class RaceList(StopableThread): # {{{
 	def updateRaceViaBroadcast(self, params):
 		self._races_rwlock.acquire_write()
 		try:
-			broadcastid = "%s:%s" % (params['name'], params['joinport'])
+			broadcastid = "%s:%s" % (params['ip'], params['joinport'])
 			if self._racesbroadcasts.has_key(broadcastid):
 				self._racesbroadcasts[broadcastid].updateRaceViaBroadcast(params['players'], params['maxplayers'], params['racetype'], params['trackdir'], params['sessiontype'], params['sessionleft'])
 				self._buildRaceListAsReply()
@@ -290,7 +290,7 @@ class Race(IdleWatcher): # {{{
 				self.params['ip'] = random.choice([ '193.99.144.71', '206.231.101.19', '80.15.238.104', '80.15.238.102' ])
 		if not self.params.has_key('server_id'):
 			self.params["server_id"] = sha.new("%s%s%s%s%s" % (self.params['client_id'], self.params['ip'], self.params['joinport'], time.time(), random.randint(0,1000000))).hexdigest()
-		self.params["broadcastid"] = "%s:%s" % (self.params['name'], self.params['joinport'])
+		self.params["broadcastid"] = "%s:%s" % (self.params['ip'], self.params['joinport'])
 
 		self.params["sessiontype"] = 0
 		self.params["sessionleft"] = self.params['praclength']
@@ -714,7 +714,7 @@ class Middleware: # {{{
 
 		try:
 			rawmode = self.rfile.read(1)
-		except socket.error,e:
+		except Exception,e:
 			log(Log.ERROR,e)
 			raise Error(Error.REQUESTERROR, "error reading mode")
 		if not rawmode:
@@ -727,7 +727,7 @@ class Middleware: # {{{
 		
 		try:
 			rawdatasize = self.rfile.read(4)
-		except socket.error,e:
+		except Exception,e:
 			log(Log.ERROR,e)
 			raise Error(Error.REQUESTERROR, "error reading datasize")
 		if len(rawdatasize)!=4:
@@ -741,7 +741,7 @@ class Middleware: # {{{
 		if mode==self.MODE_COMPRESS:
 			try:
 				rawuncompresseddatasize = self.rfile.read(4)
-			except socket.error,e:
+			except Exception,e:
 				log(Log.ERROR,e)
 				raise Error(Error.REQUESTERROR, "error reading uncompressed datasize")
 			if len(rawuncompresseddatasize)!=4:
@@ -754,7 +754,7 @@ class Middleware: # {{{
 
 		try:
 			data = self.rfile.read(datasize)
-		except socket.error, e:
+		except Exception, e:
 			log(Log.ERROR,e)
 			raise Error(Error.REQUESTERROR, "error reading data")
 
@@ -764,7 +764,7 @@ class Middleware: # {{{
 		if mode=="c":
 			try:
 				data = zlib.decompress(data)
-			except zlib.error,e:
+			except Exception,e:
 				log(Log.ERROR,e)
 				raise Error(Error.REQUESTERROR, "error decompressing  data")
 
@@ -847,15 +847,18 @@ class RaceListServer(SocketServer.ThreadingTCPServer, StopableThread): # {{{
 		self._broadcastserver.start()
 
 	def _run(self):
-		(infd,outfd,errfd) = select.select([self.socket], [], [], 1.0) # timout 1s
+		try: (infd,outfd,errfd) = select.select([self.socket], [], [], 1.0) # timout 1s
+		except select.error, e: log(Log.ERROR, 'error on select in racelist handler: %s' % e)
 		if self.socket in infd:
 			self.handle_request()
 
 	def _join(self):
-		log(Log.INFO,"shutting down racelist server port %s:%d" % (config.servername, config.racelistport))
-		self.server_close()
 		log(Log.INFO,"waiting for broadcast server");
 		self._broadcastserver.join()
+		time.sleep(1)
+		log(Log.INFO,"shutting down racelist server port %s:%d" % (config.servername, config.racelistport))
+		self.server_close()
+		time.sleep(1)
 		log(Log.INFO,"waiting for serverlist");
 		self._serverlist.join()
 		log(Log.INFO,"waiting for racelist");
@@ -936,7 +939,11 @@ class RaceListServerRequestHandler(SocketServer.StreamRequestHandler, Middleware
 		except IOError, e:
 			# something went tits up with the connection - we cant
 			# help here just log and bailout
-			log(Log.ERROR, e)
+			log(Log.ERROR, "IO error on handling request: %s" % e)
+		except scoket.error, e:
+			# something went tits up with the connection - we cant
+			# help here just log and bailout
+			log(Log.ERROR, "socket error on handling request: %s" % e)
 		except Exception, e:
 			# this are errors that should not be - try to send an
 			# error to the client, that something went wrong and
@@ -958,7 +965,8 @@ class BroadCastServer(SocketServer.ThreadingUDPServer, StopableThread): # {{{
 		SocketServer.ThreadingUDPServer.__init__(self,("",config.broadcastport),BroadCastServerRequestHandler)
 
 	def _run(self):
-		(infd,outfd,errfd) = select.select([self.socket], [], [], 1.0) # timout 1s
+		try: (infd,outfd,errfd) = select.select([self.socket], [], [], 1.0) # timout 1s
+		except select.error, e: log(Log.ERROR, 'error on select in broadcast handler: %s' % e)
 		if self.socket in infd:
 			self.handle_request()
 
