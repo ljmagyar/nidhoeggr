@@ -7,7 +7,7 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.17 2003/10/22 20:02:22 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.18 2003/10/26 20:13:01 ridcully Exp $"
 
 DEFAULT_RACELISTPORT=27233
 DEFAULT_BROADCASTPORT=6970
@@ -24,146 +24,17 @@ import sys
 import sha
 import zlib
 import struct
-import time
 import SocketServer
 import random
 import string
-import threading
 import cPickle
 import re
 import select
 import signal
 import getopt
 
-class Log: # {{{
-	"""
-	"""
-	DEBUG=0
-	INFO=1
-	WARNING=2
-	ERROR=3
-
-	_loglevelrepr = ['#','*','>','!']
-
-	def __init__(self):
-		"""
-		"""
-		self.setLogLevel(Log.INFO)
-
-	def log(self,loglevel,msg):
-		"""
-		"""
-		if loglevel >= self._loglevel:
-			message = "%s %s:\t%s" % (Log._loglevelrepr[loglevel],time.ctime(),msg)
-			print >>sys.stderr, message
-
-	def setLogLevel(self,loglevel):
-		"""
-		"""
-		self._loglevel = loglevel
-
-	def __call__(self,loglevel,msg):
-		"""
-		"""
-		self.log(loglevel,msg)
-
-log = Log()
-if __debug__:
-	log.setLogLevel(Log.DEBUG)
-
-# }}}
-
-class ReadWriteLock: # {{{
-	"""
-	"""
-
-	def __init__(self):
-		"""
-		"""
-		self._read_ready = threading.Condition(threading.Lock())
-		self._readers = 0
-
-	def acquire_read(self):
-		"""
-		"""
-		self._read_ready.acquire()
-		try: self._readers += 1
-		finally: self._read_ready.release()
-
-	def release_read(self):
-		"""
-		"""
-		self._read_ready.acquire()
-		try:
-			self._readers -= 1
-			if not self._readers:
-				self._read_ready.notifyAll()
-		finally:
-			self._read_ready.release()
-	
-	def acquire_write(self):
-		"""
-		"""
-		self._read_ready.acquire()
-		while self._readers > 0:
-			self._read_ready.wait()
-	
-	def release_write(self):
-		"""
-		"""
-		self._read_ready.release()
-
-# }}}
-
-class IdleWatcher: # {{{
-	"""
-	"""
-	def __init__(self,timeout):
-		"""
-		"""
-		self.timeout = timeout
-		self.setActive()
-	
-	def setActive(self):
-		"""
-		"""
-		self.lastactivity = time.time()
-
-	def checkTimeout(self):
-		"""
-		"""
-		return self.lastactivity + self.timeout < time.time()
-
-# IdleWatcher }}}
-
-class StopableThread(threading.Thread): # {{{
-	"""
-	"""
-	def __init__(self,sleep=0):
-		"""
-		"""
-		threading.Thread.__init__(self)
-		self._stopevent = threading.Event()
-		self._sleep = sleep
-
-	def join(self,timeout=None):
-		"""
-		initiate a graceful shutdown of the cleaning thread
-		"""
-		self._join()
-		self._stopevent.set()
-		threading.Thread.join(self,timeout)
-
-	def run(self):
-		while not self._stopevent.isSet():
-			self._run()
-			if self._sleep>0:
-				self._stopevent.wait(self._sleep)
-
-	def _join(self):pass
-	def _run(self):pass
-
-# }}}
+from tools import *
+import paramchecks
 
 class RaceList(StopableThread): # {{{
 	"""
@@ -592,27 +463,43 @@ class RaceListProtocolException(Exception): # {{{
 
 # }}}
 
+# class RaceListRequestParam: # {{{
+# 	""""""
+# 	def __init__(self, paramname, check, help):
+# 		self.paramname = paramname
+# 		self.check = check
+# 		self.help = help
+# 	def doCheck(self,value):
+# 		
+# 
+# class RaceListRequest: # {{{
+# 	"""defines a command for the racelist"""
+# 	def __init__(self,command,paramconfig):
+# 		self.command = command
+# 		self.paramconfig = paramconfig
+# # }}}
+
 class RaceListRequestHandler: # {{{
 	"""
 	"""
 	PROTOCOL_VERSION="scary v0.1"
 
-	def __init__(self,racelistserver,name,paramconfig):
+	def __init__(self,racelistserver,command,paramconfig):
 		"""
 		"""
-		self.name = name
+		self.command = command
 		self.paramconfig = paramconfig
 		self._racelistserver = racelistserver
 		self._racelist = racelistserver._racelist
 		self._keys = []
 		self._checks = []
 		for param in paramconfig:
-			(name,type) = string.split(param,":")
+			(paramname,type) = string.split(param,":")
 			checkname = 'check_%s'%type
-			if not hasattr(self,checkname):
+			if not hasattr(paramchecks,checkname):
 				raise Exception("Unknown check for type=%s"%type)
-			self._keys.append(name)
-			self._checks.append(getattr(self,checkname))
+			self._keys.append(paramname)
+			self._checks.append(getattr(paramchecks,checkname))
 
 	def handleRequest(self,client_address,values):
 		"""
@@ -636,82 +523,6 @@ class RaceListRequestHandler: # {{{
 		"""
 		raise NotImplementedError("RaceListRequestHandler._handleRequest is not implemented")
 
-	def check_string(self,value):
-		"""
-		"""
-		if len(value)>4096:
-			return "string may not be longer than 4096 chars"
-		return None
-
-	def check_boolean(self,value):
-		"""
-		"""
-		try:
-			bool = string.atoi(value)
-			if not 0 <= bool <= 1:
-				return "value is not boolean (0 or 1)"
-		except:
-			return "value is not boolean (0 or 1)"
-		return None
-
-	def check_suint(self,value):
-		"""
-		"""
-		try:
-			suint = string.atoi(value)
-			if not 0 <= suint <= 65535:
-				return "value is no small unsigned integer"
-		except:
-			return "value is no small unsigned integer"
-		return None
-
-	def check_chassisbitfield(self,value):
-		"""
-		"""
-		return self._bitfieldcheck(7,value)
-
-	def check_carclassbitfield(self,value):
-		"""
-		"""
-		return self._bitfieldcheck(3,value)
-
-	def _bitfieldcheck(self,length,value):
-		"""
-		"""
-		if len(value)!=length:
-			return "lenght must be 7 chars"
-		for x in value:
-			if not (x=='0' or x=='1'):
-				return "only 1 and 0 chars are allowed"
-		return None
-
-	def check_bandwidthfield(self,value):
-		"""
-		"""
-		fields = string.split(value,',')
-		if len(fields)!=4:
-			return "expect 4 numbers separated with a kommata"
-		try:
-			for field in fields:
-				string.atoi(field)
-		except:
-			return "expect 4 numbers separated with a kommata"
-		return None
-
-	def check_ip(self,value):
-		"""
-		"""
-		fields = string.split(value,'.')
-		if len(fields)!=4:
-			return "expect 4 numbers between 0 and 255 separated with a dot"
-		try:
-			for field in fields:
-				num = string.atoi(field)
-				if not 0<=num<=255:
-					return "expect 4 numbers between 0 and 255 separated with a dot"
-		except:
-			return "expect 4 numbers between 0 and 255 separated with a dot"
-		return None
 # }}}
 
 class RaceListRequestHandlerLogin(RaceListRequestHandler): # {{{
@@ -962,7 +773,7 @@ class RaceListRequestHandlerHelp(RaceListRequestHandler): # {{{
 		rhs = self._racelistserver._requesthandlers.values()
 		rhs.sort()
 		for rh in rhs:
-			ret.append(['command', rh.name])
+			ret.append(['command', rh.command])
 			ret.append(['description', rh.__init__.__doc__])
 			for pc in rh.paramconfig:
 				ret.append(['parameter', pc])
@@ -1026,7 +837,7 @@ class RaceListServer(SocketServer.ThreadingTCPServer): # {{{
 	def _addRequestHandler(self,handler):
 		"""
 		"""
-		self._requesthandlers[handler.name] = handler
+		self._requesthandlers[handler.command] = handler
 
 	def handleRequest(self,client_address,data):
 		"""
