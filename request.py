@@ -1,6 +1,5 @@
 import nidhoeggr
 import paramchecks
-import socket
 
 PROTOCOL_VERSION="scary v1.1"
 
@@ -69,7 +68,7 @@ class NewUser(Request): # {{{
 
 class Host(DistributableRequest): # {{{
 	def __init__(self):
-		Request.__init__( self, 
+		DistributableRequest.__init__( self, 
 			"host", 
 			[
 				Param("client_id", paramchecks.check_string, ""), 
@@ -113,7 +112,7 @@ class Join(DistributableRequest): # {{{
 	"""
 	"""
 	def __init__(self):
-		Request.__init__(self, 
+		DistributableRequest.__init__(self, 
 			"join", 
 			[
 				Param("server_id", paramchecks.check_string, ""), 
@@ -135,7 +134,7 @@ class Leave(DistributableRequest): # {{{
 	"""
 	"""
 	def __init__(self):
-		Request.__init__(self, 
+		DistributableRequest.__init__(self, 
 			"leave", 
 			[
 				Param("server_id", paramchecks.check_string, ""), 
@@ -150,7 +149,7 @@ class EndHost(DistributableRequest): # {{{
 	"""
 	"""
 	def __init__(self):
-		Request.__init__(self, 
+		DistributableRequest.__init__(self, 
 			"endhost", 
 			[
 				Param("server_id", paramchecks.check_string, ""),
