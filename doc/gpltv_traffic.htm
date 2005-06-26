@@ -1,0 +1,401 @@
+<!doctype html public "-//w3c//dtd html 4.0 transitional//en">
+<html>
+<head>
+   <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+   <meta name="GENERATOR" content="Mozilla/4.72 [en]C-CCK-MCD QXW0323l  (Win98; U) [Netscape]">
+</head>
+<body text="#000000" bgcolor="#C0C0C0" link="#0000EE" vlink="#551A8B" alink="#FF0000">
+
+<h2>
+<u>GPL.tv - description of network traffic between GPL.tv server and a
+GPL.tv client</u></h2>
+
+<h3>
+1. general information</h3>
+GPL.tv uses TCP/IP for data transfer from server to client. After establishing
+a connection the client needs to send a request to the GPL.tv server. In
+response to this request the server will start sending data packets to
+the client, one per second.
+<br>&nbsp;
+<h3>
+2. how to find a GPL.tv server</h3>
+If you don't know the IP address and/or port number of a GPL.tv server,
+you can obtain a list of running servers. To do so you need to establish
+a TCP/IP connection to vr-7.de port 32002 and send the string "GPL.tv get
+server list" to this server. The list server will respond with a list of
+GPL.tv servers and close the connection. The format of one entry is the
+following:
+<br>&nbsp;
+<table BORDER >
+<tr>
+<td><b>Type</b></td>
+
+<td><b>Length</b></td>
+
+<td><b>&nbsp;Meaning</b></td>
+</tr>
+
+<tr>
+<td>Unsigned8</td>
+
+<td>
+<center>1</center>
+</td>
+
+<td>length of this entry</td>
+</tr>
+
+<tr>
+<td>String16</td>
+
+<td>
+<center>1..16</center>
+</td>
+
+<td>server name</td>
+</tr>
+
+<tr>
+<td>String16</td>
+
+<td>
+<center>1..16</center>
+</td>
+
+<td>current track directory</td>
+</tr>
+
+<tr>
+<td>Unsigned32</td>
+
+<td>
+<center>4</center>
+</td>
+
+<td>ip address</td>
+</tr>
+
+<tr>
+<td>Unsigned16</td>
+
+<td>
+<center>2</center>
+</td>
+
+<td>port number</td>
+</tr>
+
+<tr>
+<td>Unsigned8[5]</td>
+
+<td>
+<center>5</center>
+</td>
+
+<td>reserved (this may change in the future)</td>
+</tr>
+</table>
+
+<h3>
+3. establishing a connection</h3>
+With a known ip address and port number a client can connect to a GPL.tv
+server. Then the client needs to send the string "GPL.tv connect:" (followed
+by a password if needed) to the server. The server will start to send data
+packets one per second without further action by the client.
+<br>&nbsp;
+<h3>
+4. format of a data packet</h3>
+
+<table BORDER >
+<tr>
+<td><b>Type</b></td>
+
+<td><b>Length</b></td>
+
+<td>&nbsp;<b>Meaning</b></td>
+</tr>
+
+<tr>
+<td>Char8[6]</td>
+
+<td>
+<center>6</center>
+</td>
+
+<td>signature, this is always "GPL.tv"</td>
+</tr>
+
+<tr VALIGN=TOP>
+<td VALIGN=TOP>Unsigned8</td>
+
+<td>
+<center>1</center>
+</td>
+
+<td VALIGN=TOP>type of packet:
+<br>0x00 - close connection
+<br>0x02 - car position data
+<br>0x03 - chat messages
+<br>0x04 - driver info
+<br>0x05 - race info
+<br>0x06 - server name
+<br>0x07 - standings info</td>
+</tr>
+
+<tr>
+<td>Unsigned8</td>
+
+<td>
+<center>1</center>
+</td>
+
+<td>length of the following data * 4</td>
+</tr>
+
+<tr>
+<td>&nbsp;</td>
+
+<td>
+<center>&lt;=1020</center>
+</td>
+
+<td>packet data</td>
+</tr>
+</table>
+
+<h4>
+4.1. close connection packet</h4>
+In case of an error the server will send a close connection packet.
+<br>&nbsp;
+<table BORDER >
+<tr>
+<td><b>Type</b></td>
+
+<td><b>Length</b></td>
+
+<td><b>&nbsp;Meaning</b></td>
+</tr>
+
+<tr VALIGN=TOP>
+<td VALIGN=TOP>Unsigned8</td>
+
+<td VALIGN=TOP>
+<center>1</center>
+</td>
+
+<td>reason code:
+<br>0x01: wrong password
+<br>0x02: number of clients exceeded</td>
+</tr>
+</table>
+
+<h4>
+4.2. chat message packet</h4>
+There is no need to explain this.
+<br>&nbsp;
+<h4>
+4.3. driver info packet</h4>
+This packet contains information about one or more drivers
+<br>&nbsp;
+<table BORDER >
+<tr>
+<td><b>Type</b></td>
+
+<td><b>Length</b></td>
+
+<td><b>&nbsp;Meaning</b></td>
+</tr>
+
+<tr>
+<td>String16</td>
+
+<td>
+<center>1..16</center>
+</td>
+
+<td>first name</td>
+</tr>
+
+<tr>
+<td>String16</td>
+
+<td>
+<center>1..16</center>
+</td>
+
+<td>last name</td>
+</tr>
+
+<tr>
+<td>Unsigned8</td>
+
+<td>
+<center>1</center>
+</td>
+
+<td>car type</td>
+</tr>
+
+<tr>
+<td>Unsigned8</td>
+
+<td>
+<center>1</center>
+</td>
+
+<td>car number</td>
+</tr>
+
+<tr>
+<td>Unsigned8</td>
+
+<td>
+<center>1</center>
+</td>
+
+<td>start number</td>
+</tr>
+</table>
+
+<h4>
+4.4. race info packet</h4>
+This packet contains information about the hosted race
+<br>&nbsp;
+<table BORDER >
+<tr>
+<td><b>Type</b></td>
+
+<td><b>Length</b></td>
+
+<td><b>&nbsp;Meaning</b></td>
+</tr>
+
+<tr>
+<td>String16</td>
+
+<td>
+<center>1..16</center>
+</td>
+
+<td>track directory</td>
+</tr>
+
+<tr>
+<td>String16</td>
+
+<td>
+<center>1..16</center>
+</td>
+
+<td>carset</td>
+</tr>
+
+<tr>
+<td>Unsigned8</td>
+
+<td>
+<center>1</center>
+</td>
+
+<td>race type</td>
+</tr>
+
+<tr>
+<td>Unsigned8</td>
+
+<td>
+<center>1</center>
+</td>
+
+<td>number of racelaps</td>
+</tr>
+</table>
+
+<h4>
+4.5. server name packet</h4>
+
+<table BORDER >
+<tr>
+<td><b>Type</b></td>
+
+<td><b>Length</b></td>
+
+<td><b>&nbsp;Meaning</b></td>
+</tr>
+
+<tr>
+<td>String16</td>
+
+<td>
+<center>1..16</center>
+</td>
+
+<td>server name</td>
+</tr>
+</table>
+
+<h4>
+4.6. standings info packet</h4>
+
+<table BORDER >
+<tr>
+<td><b>Type</b></td>
+
+<td><b>Length</b></td>
+
+<td><b>&nbsp;Meaning</b></td>
+</tr>
+
+<tr VALIGN=TOP>
+<td VALIGN=TOP>Unsigned8</td>
+
+<td>
+<center>1</center>
+</td>
+
+<td>bit 0..6: car number (see 4.3 driver info packet)
+<br>bit 7: current session (0=practice, 1=race)</td>
+</tr>
+
+<tr>
+<td>Unsigned8</td>
+
+<td>
+<center>1</center>
+</td>
+
+<td>lap number</td>
+</tr>
+
+<tr VALIGN=TOP>
+<td VALIGN=TOP>Unsigned32</td>
+
+<td VALIGN=TOP>
+<center>4</center>
+</td>
+
+<td>in pactice: time of fastest lap
+<br>in race: absolute time from start of race session</td>
+</tr>
+
+<tr VALIGN=TOP>
+<td VALIGN=TOP>Unsigned32</td>
+
+<td VALIGN=TOP>
+<center>4</center>
+</td>
+
+<td>in pactice: time of last lap
+<br>in race: time of fastest lap</td>
+</tr>
+</table>
+
+<p>If the session flag changes from practice to race or back to practice,
+the client needs to clear its standings table. Also there is an additional
+defined packet with lap number set to 255 and car number 127, that indicates
+a session change.
+<br>Time values are given in ms.
+<br>&nbsp;
+<br>&nbsp;
+</body>
+</html>
