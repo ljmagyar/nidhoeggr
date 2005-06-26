@@ -1,7 +1,7 @@
 import nidhoeggr
 import paramchecks
 
-PROTOCOL_VERSION="scary v1.0"
+PROTOCOL_VERSION="scary v1.1"
 
 class Param: # {{{
 	def __init__(self, paramname, check, help):
@@ -97,7 +97,8 @@ class Host(Request): # {{{
 		Param("team_id", paramchecks.check_team, ""), 
 		Param("mod_id", paramchecks.check_string, ""), 
 		Param("nationality", paramchecks.check_nationality, ""), 
-		Param("helmet_colour", paramchecks.check_helmetcolour, "")
+		Param("helmet_colour", paramchecks.check_helmetcolour, ""),
+		Param("gpltvport", paramchecks.check_suint, ""),
 	]
 	description = """Starts hosting of a race. The given informations are used to describe the race and will be displayed in the same order in the racelist."""
 	resultdescription = """A unique id for the server, that will be used to update the hosting and race informations and also by the clients to join/leave the race and the IP address the request came from"""

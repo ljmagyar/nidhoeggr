@@ -4,11 +4,11 @@
 # - way to handle permanent servers
 # - allow servers to have names instead of ips so dyndns entries can be used
 
-SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.5 2004/12/13 10:07:16 ridcully Exp $"
+SERVER_VERSION="nidhoeggr $Id: nidhoeggr.py,v 1.6 2005/06/26 13:04:33 ridcully Exp $"
 
 __copyright__ = """
-(c) Copyright 2003-2004 Christoph Frick <rid@zefix.tv>
-(c) Copyright 2003-2004 iGOR Development Group
+(c) Copyright 2003-2005 Christoph Frick <rid@zefix.tv>
+(c) Copyright 2003-2005 iGOR Development Group
 All Rights Reserved
 This software is the proprietary information of the iGOR Development Group
 Use is subject to license terms
@@ -33,6 +33,7 @@ from SocketServer import ThreadingUDPServer, DatagramRequestHandler
 from tools import StopableThread, IdleWatcher, log, Log
 import request
 import paramchecks
+import gpltv
 
 class RaceList(StopableThread): # {{{
 
@@ -41,15 +42,17 @@ class RaceList(StopableThread): # {{{
 	STATE_STOP = 3
 
 	def __init__(self, racelistserver):
-		StopableThread.__init__(self,config.racelist_clean_interval)
+		StopableThread.__init__(self)
 
 		self._racelistserver = racelistserver
+		self._last_time_cleaned = 0
 
 		self._users = {}
 		self._usersuniqids = {}
 		self._races = {}
 		self._racesbroadcasts = {}
 		self._reqfull = []
+		self._gpltvs = {}
 
 		self._state = RaceList.STATE_START
 
@@ -119,9 +122,19 @@ class RaceList(StopableThread): # {{{
 			if not self.hasRace(race.params['server_id']):
 				self._races[race.params['server_id']] = race
 				self._racesbroadcasts[race.params['broadcastid']] = race
+				self._handleGPLTVRace(race)
 				self._buildRaceListAsReply()
 		finally:
 			self._races_sem.release()
+
+	def _handleGPLTVRace(self, race):
+		if race.gpltv:
+			try:
+				race.gpltv.connect()
+				self._gpltvs[race.gpltv.socket.fileno()] = race
+			except socket.error, e:
+				log(Log.ERROR, "GPLTV socket error while connecting: %s" % e)
+				race.gpltv = None
 
 	def removeRace(self,server_id,client_id):
 		self._races_sem.acquire()
@@ -220,49 +233,75 @@ class RaceList(StopableThread): # {{{
 		# nothing do until we hit the RUN state
 		if self._state!=RaceList.STATE_RUN: 
 			return
+
+		outfds, infds, errfds = select.select([], self._gpltvs.keys(), [], 1.0)
+		if len(infds):
+			self._races_sem.acquire()
+			try:
+				for infd in infds:
+					try:
+						gpltv_message = self._gpltvs[infd].gpltv.handle()
+						if gpltv_message: 
+							if gpltv_message.id == gpltv.CLOSE_CONNECTION:
+								del(self._gpltvs[infd])
+							if __debug__:
+								log(Log.DEBUG, message)
+					except socket.error, e:
+						log(Log.ERROR, "GPLTV socket error while handling: %s" % e)
+						self._gpltvs[infd].gpltv = None
+						del(self._gpltvs[infd])
+
+
+			finally:
+				self._races_sem.release()
+
+
 		currenttime = time()
-		usercount = 0
-		userdelcount = 0
-		racecount = 0
-		racedelcount = 0
-		raceinvisiblecount = 0
+		if self._last_time_cleaned + config.racelist_clean_interval < currenttime:
+			self._last_time_cleaned = currenttime
 
-		self._users_sem.acquire()
-		self._races_sem.acquire()
-		try:
-			for server_id in self._races.keys():
-				racecount = racecount + 1
-				# set the client, which started the race, active
-				client_id = self._races[server_id].params['client_id']
-				if self._users.has_key(client_id):
-					self._users[client_id].setActive()
-				if self._racelistserver._request_count:
-					if self._races[server_id].params['visible'] and self._races[server_id].checkTimeout(currenttime):
-						# soft timeout removes it from display
-						if __debug__:
-							log(Log.DEBUG, "setting race %s invisible" % server_id )
-						self._races[server_id].params['visible'] = 0
-						raceinvisiblecount = raceinvisiblecount + 1
-						self._buildRaceListAsReply()
-					elif self._races[server_id].checkTimeout(currenttime,config.race_timeout_hard):
-						# hard timeout deletes the race
-						if __debug__:
-							log(Log.DEBUG, "removing race %s" % server_id )
-						racedelcount = racedelcount + 1
-						self._removeRace(server_id, self._races[server_id].params['client_id'])
-			for client_id in self._users.keys():
-				usercount = usercount + 1
-				if self._users[client_id].checkTimeout(currenttime):
-					if __debug__:
-						log(Log.DEBUG, "removing user %s" % client_id )
-					userdelcount = userdelcount + 1
-					self._removeUser(client_id)
-		finally:
-			self._races_sem.release()
-			self._users_sem.release()
+			usercount = 0
+			userdelcount = 0
+			racecount = 0
+			racedelcount = 0
+			raceinvisiblecount = 0
 
-		log(log.INFO, "cleanup: %d/%d users; %d/%d/%d races" % (userdelcount,usercount,racedelcount,raceinvisiblecount,racecount))
-		self._save()
+			self._users_sem.acquire()
+			self._races_sem.acquire()
+			try:
+				for server_id in self._races.keys():
+					racecount = racecount + 1
+					# set the client, which started the race, active
+					client_id = self._races[server_id].params['client_id']
+					if self._users.has_key(client_id):
+						self._users[client_id].setActive()
+					if self._racelistserver._request_count:
+						if self._races[server_id].params['visible'] and self._races[server_id].checkTimeout(currenttime):
+							# soft timeout removes it from display
+							if __debug__:
+								log(Log.DEBUG, "setting race %s invisible" % server_id )
+							self._races[server_id].params['visible'] = 0
+							raceinvisiblecount = raceinvisiblecount + 1
+							self._buildRaceListAsReply()
+						elif self._races[server_id].checkTimeout(currenttime,config.race_timeout_hard):
+							# hard timeout deletes the race
+							if __debug__:
+								log(Log.DEBUG, "removing race %s" % server_id )
+							racedelcount = racedelcount + 1
+							self._removeRace(server_id, self._races[server_id].params['client_id'])
+				for client_id in self._users.keys():
+					usercount = usercount + 1
+					if self._users[client_id].checkTimeout(currenttime):
+						if __debug__:
+							log(Log.DEBUG, "removing user %s" % client_id )
+						userdelcount = userdelcount + 1
+						self._removeUser(client_id)
+			finally:
+				self._races_sem.release()
+				self._users_sem.release()
+
+			log(log.INFO, "cleanup: %d/%d users; %d/%d/%d races" % (userdelcount,usercount,racedelcount,raceinvisiblecount,racecount))
+			self._save()
 
 	def _join(self):
 		self._state = RaceList.STATE_STOP
@@ -310,6 +349,7 @@ class RaceList(StopableThread): # {{{
 						self._racesbroadcasts[race.params['broadcastid']] = race
 						if self._users.has_key(race.params['client_id']):
 							self._users[race.params['client_id']].setActive()
+						self._handleGPLTVRace(race)
 						# XXX update the racelist
 						race.genBroadcastId()
 					self._usersuniqids = {}
@@ -374,6 +414,10 @@ class Race(IdleWatcher): # {{{
 
 	def _initstateless(self):
 		self.setActive()
+
+		self.gpltv = None
+		if self.params["gpltvport"]:
+			self.gpltv = gpltv.Server(self.params["ip"], int(self.params["gpltvport"]), self.params["name"], self.params["trackdir"])
 
 	def genBroadcastId(self):
 		firstchar = ""
@@ -441,7 +485,8 @@ class Race(IdleWatcher): # {{{
 			str(self.params['aiplayers']),
 			str(self.params['numraces']),
 			str(self.params['repeatcount']),
-			str(self.params['flags'])
+			str(self.params['flags']),
+			str(self.params['gpltvport']),
 		)
 		return ret
 

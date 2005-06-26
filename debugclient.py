@@ -97,7 +97,8 @@ class DebugClient:
 						str(randint(0,6)),
 						getMod(),
 						str(randint(0,28)),
-						str(randint(0,15))
+						str(randint(0,15)),
+						"32001"
 					]])
 			for i in range(randint(1,10)):
 				c = Client(self.servername,self.serverport)
