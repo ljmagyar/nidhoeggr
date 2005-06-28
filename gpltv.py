@@ -17,7 +17,7 @@ def readCString(msg, offset):
 	"""reads a C string (\0 terminated) and returns the string and the next offset
 	"""
 	soffset = offset
-	while not msg[offset]=="\000":
+	while not msg[soffset]=="\000":
 		soffset += 1
 	return (msg[offset:soffset], soffset+1)
 
@@ -243,13 +243,13 @@ class Server:
 		self.race = Race(trackdir)
 
 	def __str__(self):
-		return "gpl.tv server\n=============\nHost:\t%s:%d\nName:\t%s\nTrack:\t%s\nRvd:\t%s" % (self.ip, self.port, self.servername, self.trackdir, self.reserved)
+		return "gpl.tv server\n=============\nHost:\t%s:%d\nName:\t%s\nTrack:\t%s\nRvd:\t%s" % (self.ip, self.port, self.servername, self.race.trackdir, self.reserved)
 
 	def connect(self, password=""):
 		self.socket = socket(AF_INET, SOCK_STREAM)
 		self.socket.connect((self.ip, self.port))
 		self.socket.send(Server._CONNECT % password)
-		self.connect = 1
+		self.connected = 1
 
 	def disconnect(self):
 		self.socket.close()
@@ -257,7 +257,7 @@ class Server:
 
 	def handle(self):
 		signature = self.socket.recv(6)
-		assert(signature==_SIGNATURE)
+		assert(signature==Server._SIGNATURE)
 
 		id = ord(self.socket.recv(1)[0])
 		len = ord(self.socket.recv(1)[0]) * 4
@@ -310,7 +310,7 @@ class MetaServer:
 		while 1:
 			server = self._query(s)
 			if server:
-				ret.append(s)
+				ret.append(server)
 			else:
 				break
 		return ret
@@ -357,6 +357,7 @@ def main(args=[]):
 	select_infds = {}
 	metaserver = MetaServer()
 	for gpltvserver in metaserver.query():
+		print gpltvserver
 		gpltvserver.connect()
 		select_infds[gpltvserver.socket.fileno()] = gpltvserver
 	while 1: 
