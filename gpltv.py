@@ -30,8 +30,8 @@ class Message:
 		self.id = id
 		self.msg = msg
 
-	def _commonInfo(self, messagename=""):
-		return "Message '%s' from %s (%s:%d)" % (messagename, self.server.servername, self.server.ip, self.server.port)
+	def __str__(self):
+		return str(self.__dict__)
 
 
 class MessageUnhandled(Message):
@@ -50,15 +50,12 @@ class MessageCloseConnection(Message):
 
 	names = {
 		WRONG_PASSWORD : "Wrong Password",
-		NUMBER_OF_CLIENTS_EXCEEDED  : "Number Of CLients Exceeded"
+		NUMBER_OF_CLIENTS_EXCEEDED  : "Number Of Clients Exceeded"
 	}
 
 	def __init__(self, msg):
 		Message.__init__(self, CLOSE_CONNECTION, msg)
 		self.reason = ord(msg[0])
-
-	def __str__(self):
-		return "%s\nreason:\t%s (%d)" % (self._commonInfo("Close Connection"), MessageCloseConnection.names[self.reason], self.reason)
 
 
 class MessageChatMessage(Message):
@@ -69,8 +66,6 @@ class MessageChatMessage(Message):
 		Message.__init__(self, CHAT_MESSAGES, msg)
 		self.message = msg
 
-	def __str__(self):
-		return "%s\nmessage:\t'%s'" % (self._commonInfo("Chat Message"), self.message)
 
 
 class MessageServerName(Message):
@@ -81,8 +76,6 @@ class MessageServerName(Message):
 		Message.__init__(self, SERVER_NAME, msg)
 		self.servername = msg
 
-	def __str__(self):
-		return "%s\nmessage:\t'%s'" % (self._commonInfo("Server Name"), self.servername)
 
 
 class MessageRaceInfo(Message):
@@ -93,15 +86,9 @@ class MessageRaceInfo(Message):
 		Message.__init__(self, RACE_INFO, msg)
 
 		o = 0
-
 		self.trackdir, o = readCString(msg, o)
-
 		self.carset, o = readCString(msg, o)
-
-		self.race_type = ord(msg[o])
-		o += 1
-
-		self.race_laps = ord(msg[o])
+		self.race_type, self.race_laps = map(ord, msg[o:o+2])
 
 
 class MessageDriverInfo(Message):
@@ -113,18 +100,14 @@ class MessageDriverInfo(Message):
 		Message.__init__(self, DRIVER_INFO, msg)
 
 		o = 0
-
-		self.first_name, o = readCString(msg, o)
-
-		self.last_name, o = readCString(msg, o)
-
-		self.car_type = ord(msg[o])
-		o += 1
-
-		self.car_number = ord(msg[o])
-		o += 1
-
-		self.start_number = ord(msg[o])
+		self.drivers = []
+		while not msg[o]=="\000" and o<len(msg):
+			driver = Driver()
+			driver.first_name, o = readCString(msg, o)
+			driver.last_name, o = readCString(msg, o)
+			driver.car_type, driver.car_number, driver.start_number = map(ord, msg[o:o+3])
+			o += 3
+			self.drivers.append(driver)
 
 class MessageStandingsInfo(Message):
 	"""update about the times of a driver; this can be related to the
@@ -141,8 +124,8 @@ class MessageStandingsInfo(Message):
 
 		self.clear_standings = self.car_number==127 and self.lap_number==255
 
-		self.time1 = unpack("<I", msg[2:5])[0]
-		self.time2 = unpack("<I", msg[6:9])[0]
+		self.time1 = unpack("<I", msg[2:6])[0]
+		self.time2 = unpack("<I", msg[6:10])[0]
 
 #
 # BASE DATA
@@ -153,12 +136,14 @@ class Driver:
 	   within a race
 	"""
 
-	def __init__(self, msg):
+	def __init__(self):
+		""" are set from the MessageDriverInfo for now
 		self.first_name = msg.first_name
 		self.last_name = msg.last_name
 		self.car_type = msg.car_type
 		self.car_number = msg.car_number
 		self.start_number = msg.start_number
+		"""
 		self.clearStandings()
 
 	def clearStandings(self):
@@ -182,13 +167,14 @@ class Race:
 		self.drivers = {}
 
 	def updateByRaceInfo(self, mri):
-		self.trackdir = msi.trackdir
-		self.carset = msi.carset
-		self.race_type = msi.race_type
-		self.race_laps = msi.race_laps
+		self.trackdir = mri.trackdir
+		self.carset = mri.carset
+		self.race_type = mri.race_type
+		self.race_laps = mri.race_laps
 
-	def updateByDriverInfo(self, mdi):
-		self.drivers[driver.car_number] = Driver(driver)
+	def updateByDriverInfo(self, drivers):
+		for driver in drivers:
+			self.drivers[driver.car_number] = driver
 
 	def updateByStandingsInfo(self, msi):
 		# check for a change in the session
@@ -220,7 +206,7 @@ class Server:
 	   data received from it
 	"""
 
-	DEFAULTPORT = 32002
+	DEFAULTPORT = 32001
 
 	_CONNECT   = "GPL.tv connect:%s\000"
 	_SIGNATURE = "GPL.tv"
@@ -247,6 +233,7 @@ class Server:
 
 	def connect(self, password=""):
 		self.socket = socket(AF_INET, SOCK_STREAM)
+		self.socket.settimeout(10)
 		self.socket.connect((self.ip, self.port))
 		self.socket.send(Server._CONNECT % password)
 		self.connected = 1
@@ -275,7 +262,7 @@ class Server:
 			elif id == RACE_INFO:
 				self.race.updateByRaceInfo(message)
 			elif id == DRIVER_INFO:
-				self.race.updateByDriverInfo(message)
+				self.race.updateByDriverInfo(message.drivers)
 			elif id == STANDINGS_INFO:
 				self.race.updateByStandingsInfo(message)
 
@@ -356,17 +343,32 @@ def main(args=[]):
 	from select import select
 	select_infds = {}
 	metaserver = MetaServer()
-	for gpltvserver in metaserver.query():
-		print gpltvserver
-		gpltvserver.connect()
-		select_infds[gpltvserver.socket.fileno()] = gpltvserver
+	if len(args):
+		for ip in args:
+			gpltvserver = Server(ip=ip)
+			try:
+				gpltvserver.connect()
+				select_infds[gpltvserver.socket.fileno()] = gpltvserver
+			except Exception, e:
+				print e
+	else:
+		for gpltvserver in metaserver.query():
+			print gpltvserver
+			try:
+				gpltvserver.connect()
+				select_infds[gpltvserver.socket.fileno()] = gpltvserver
+			except Exception, e:
+				print e
 	while 1: 
 		outfds, infds, errfds = select([], select_infds.keys(), [])
 		for infd in infds:
-			message = select_infds[infd].handle()
-			if message:
-				print message
+			try:
+				message = select_infds[infd].handle()
+				if message:
+					print message
+			except Exception, e:
+				print e
 
 if __name__ == "__main__":
 	import sys
-	main(sys.argv)
+	main(sys.argv[1:])
