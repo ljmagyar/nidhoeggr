@@ -21,6 +21,7 @@ def handleShutdown():
 		return
 	server.stop()
 	sys.exit(0)
+	return
 
 def usage(message=None,errorcode=0):
 	if message is not None:
@@ -29,6 +30,7 @@ def usage(message=None,errorcode=0):
 	log(Log.INFO, "-c <configfile>:")
 	log(Log.INFO, "\tthe given file will be loaded as the config instead of the default (%s)\n" % (config.configfile))
 	sys.exit(errorcode)
+	return
 
 def main(argv=None):
 
@@ -55,11 +57,19 @@ def main(argv=None):
 	global server
 	server = nidhoeggr.Server()
 
-	# set the signals the server listens on for the shutdown
-	signals = ( 'SIGHUP', 'SIGINT', 'SIGKILL', 'SIGPIPE', 'SIGALRM', 'SIGTERM', 'SIGUSR1', 'SIGUSR2' )
-	for sgn in signals:
+	log(Log.INFO, "installing signal handlers")
+	# set the signals the server listens on for ignoring them
+	ignoresignals = ( 'SIGPIPE', 'SIGALRM', 'SIGUSR1', 'SIGUSR2' )
+	for sgn in ignoresignals:
 		if hasattr(signal, sgn):
-			log(Log.INFO, "listening for signal '%s' for shutdown" % sgn)
+			log(Log.INFO, "ignoring signal '%s'" % sgn)
+			signal.signal(getattr(signal,sgn), signal.SIG_IGN)
+
+	# set the signals the server listens on for the shutdown
+	shutdownsignals = ( 'SIGHUP', 'SIGINT', 'SIGKILL', 'SIGTERM' )
+	for sgn in shutdownsignals:
+		if hasattr(signal, sgn):
+			log(Log.INFO, "shutdown on signal '%s'" % sgn)
 			signal.signal(getattr(signal,sgn), handleShutdownSignal)
 
 	# start the server and loop ad infiniti

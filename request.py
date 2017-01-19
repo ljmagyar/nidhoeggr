@@ -580,7 +580,7 @@ class HandlerRLSUpdate(Handler, RLSUpdate): # {{{
 		Handler.__init__(self, server)
 
 	def _handleRequest(self, params):
-		return self._server._serverlist.getUpdate(params['rls_id'], int(params['current_load']))
+		return self._server._serverlist.getUpdate(params['ip'], params['rls_id'], int(params['current_load']))
 # }}}
 
 class HandlerRLSFullUpdate(Handler, RLSFullUpdate): # {{{

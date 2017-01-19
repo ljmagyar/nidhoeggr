@@ -31,7 +31,7 @@
 \newcommand{\gplop}{{\it iGOR}}
 \newcommand{\gplopdev}{{\it iGOR Development Group}}
 
-\newcommand{\scaryport}{27233}
+\newcommand{\scaryport}{31997}
 
 
 \begin{document}
@@ -50,7 +50,7 @@ sending requests to the server adding, updating, querying and deleting
 informations. This document describes the protocol itself and the commands
 used over it.\\
 
-The may only \scary\ protocol be used by applications, that are allowed to use
+The \scary\ protocol may only be used by applications, that are allowed to use
 it. This is valid both for \rlc's and \rls's. The use without the written
 permission of the \gplopdev is strictly forbidden.\\
 
@@ -67,7 +67,7 @@ All rights reserved
 
 \section{Protocol}
 
-The protocol itself using TCP/IP for connections between the \rlc\ (client) and
+The protocol itself uses TCP/IP for connections between the \rlc\ (client) and
 the \rls\ (server). The client connects to the server on the default port
 (\scaryport). The client send the {\it request} to the server. The server then
 forges a {\it reply} to the request and sends it back to the client. The
@@ -85,7 +85,7 @@ fashion:\\
 This is the ident string for this protocol. The ident are the chars: {\tt w196} \\
 
 \item {\tt C}\\
-This flags defines whether the data are gnuzip compressed data or clear text.
+This flag defines whether the data are gnuzip compressed data or clear text.
 For compressed data a {\tt C} is used - and for clear text a {\tt T}
 
 \item {\tt SSSS}\\
@@ -95,14 +95,14 @@ size of the data transmitted is always the real size to read from the socket.
 
 \end{description}
 
-If the data are compressed the next four byte are the size of the data after
+If the data are compressed the next four bytes are the size of the data after
 the compression. This number does count for the {\tt SSSS} size and its stored
 like this number as {\it unsigned long int} in {\it network byte order}.\\
 
 After the interpretation of the header, the given amount of bytes is read from
 the socket. The data are encoded in ISO-8859-1.\\
 
-To allow a common way to seprate the different fields in the data the
+To allow a common way to separate the different fields in the data the
 following scheme is used to establish a table like handling of the data. The
 char {\tt $\backslash$002} is used to separate {\bf lines}. The char {\tt
 $\backslash$001} is used to separate {\bf cells/columns}.\\
@@ -118,8 +118,8 @@ parameter.\\
 
 The reply of the server contains in the first line the status of the reply.
 The first line contains two cells. The first is a number, that stands for a
-group of errors. The second cell contains an message, that gives an accurate
-description for the number. The following numers are used:\\
+group of errors. The second cell contains a message, that gives an accurate
+description for the number. The following numbers are used:\\
 
 \begin{description}
 
@@ -130,11 +130,11 @@ replies are described in the next section.
 
 \item 400 \\
 There is an error with the request. See the description for details. Most
-common are errors with the amount or the type of the submitet parameters.
+common are errors with the amount or the type of the submitted parameters.
 
 \item 401 \\
 The execution of this command needs a valid client id. Either the user is not
-logged in or the user has been dropped due to inactivity for a longer period.
+logged in or the user has been dropped due to inactivity for a long period.
 
 \item 404 \\
 The resource used in the request is not (longer) known. This is most common,
@@ -143,7 +143,7 @@ longer inactivity.
 
 \item 500 \\
 There is an internal server error. This should not happen, so it would be good
-to have here a usefull description about, what command resulted in this error
+to have here a useful description about which command resulted in this error
 and if possible how to reproduce this error. Inform the developer of the
 server about this issue or the administrator of the server and try to provide
 him with as many informations as possible.
