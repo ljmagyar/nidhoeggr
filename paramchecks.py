@@ -36,7 +36,7 @@ def check_players(value):
 	return __int_range_check(value,0,20)
 
 def check_chassisbitfield(value):
-	return __bitfield_check(7,value)
+	return __bitfield_check(20,value)
 
 def check_carclassbitfield(value):
 	return __bitfield_check(3,value)
@@ -78,7 +78,7 @@ def __bitfield_check(length,value):
 	"""
 	"""
 	if len(value)!=length:
-		return "lenght must be 7 chars"
+		return "length must be %d chars" % (length)
 	for x in value:
 		if not (x=='0' or x=='1'):
 			return "only 1 and 0 chars are allowed"
